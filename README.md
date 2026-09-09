@@ -1,14 +1,14 @@
 # Online Shop
 
-Учебный проект интернет-магазина на Java.
+An educational Java project for an online shop.
 
-## Технологии
+## Technologies
 
 - Java 21
 - Maven
 - JUnit 5
 
-## Структура проекта
+## Project Structure
 
 ```text
 src/
@@ -21,27 +21,27 @@ src/
     └── OrderPolicyTest.java
 ```
 
-## Описание
+## Description
 
-Проект содержит базовую логику управления заказами интернет-магазина.
+The project contains the basic order management logic for an online shop.
 
-Основные возможности:
+Main features:
 
-- создание идентификатора заказа;
-- работа со статусами заказа;
-- проверка допустимых переходов между статусами;
-- обработка некорректных переходов;
-- автоматическое тестирование бизнес-логики.
+- creating an order identifier;
+- working with order statuses;
+- validating allowed transitions between statuses;
+- handling invalid transitions;
+- automated testing of the business logic.
 
-## Требования
+## Requirements
 
-Для запуска проекта необходимы:
+To run the project you need:
 
-- JDK 21 или выше;
+- JDK 21 or higher;
 - Apache Maven;
 - Git.
 
-Проверить установленные версии можно командами:
+You can check the installed versions with:
 
 ```bash
 java -version
@@ -49,30 +49,30 @@ mvn -version
 git --version
 ```
 
-## Сборка проекта
+## Building the Project
 
-Выполните в корневой папке проекта:
+Run in the project root folder:
 
 ```bash
 mvn compile
 ```
 
-## Запуск тестов
+## Running Tests
 
 ```bash
 mvn test
 ```
 
-## Запуск приложения
+## Running the Application
 
 ```bash
 mvn exec:java -Dexec.mainClass="org.example.Main"
 ```
 
-Если плагин запуска не настроен, приложение можно запустить через IDE, открыв класс `org.example.Main`.
+If the run plugin is not configured, the application can be started via an IDE by opening the `org.example.Main` class.
 
 ## GitHub
 
-Репозиторий проекта:
+Project repository:
 
 https://github.com/Saedkan/Online-Shop
