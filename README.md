@@ -1,6 +1,32 @@
 # Online Shop
 
-An educational Java project for an online shop.
+We build an **online shop platform**. People track **orders** (items in cart, 
+purchases, deliveries).
+
+## Product
+
+An order management system that validates state transitions for e-commerce orders. The system ensures orders flow through proper lifecycle stages without invalid state changes.
+
+## Core item
+
+**Order** - A core business entity identified by OrderId, tracked through its lifecycle with status changes: CART → PAID → SHIPPED → DELIVERED → RETURNED (optional).
+
+## Status table
+
+| From | To | Allowed? | 
+|------|-----|----------|
+| CART | PAID | ✅ |
+| PAID | SHIPPED | ✅ |
+| DELIVERED | RETURNED | ❌ |
+| SHIPPED | CART | ❌ |
+
+## Forbidden — why
+
+1. **DELIVERED → RETURNED**: Cannot return a delivered order directly. Must use the separate return process with approval workflow.
+
+2. **SHIPPED → CART**: Cannot move a shipped order back to cart. Order is already in logistics and cannot be reverted.
+
+---
 
 ## Technologies
 
@@ -13,66 +39,17 @@ An educational Java project for an online shop.
 ```text
 src/
 ├── main/java/org/example/
-│   ├── Main.java
 │   ├── OrderId.java
-│   ├── OrderPolicy.java
-│   └── OrderStatus.java
+│   ├── OrderStatus.java
+│   └── OrderPolicy.java
 └── test/java/org/example/
     └── OrderPolicyTest.java
 ```
 
-## Description
-
-The project contains the basic order management logic for an online shop.
-
-Main features:
-
-- creating an order identifier;
-- working with order statuses;
-- validating allowed transitions between statuses;
-- handling invalid transitions;
-- automated testing of the business logic.
-
-## Requirements
-
-To run the project you need:
-
-- JDK 21 or higher;
-- Apache Maven;
-- Git.
-
-You can check the installed versions with:
+## Building and Running
 
 ```bash
-java -version
-mvn -version
-git --version
+mvn clean test
 ```
 
-## Building the Project
-
-Run in the project root folder:
-
-```bash
-mvn compile
-```
-
-## Running Tests
-
-```bash
-mvn test
-```
-
-## Running the Application
-
-```bash
-mvn exec:java -Dexec.mainClass="org.example.Main"
-```
-
-If the run plugin is not configured, the application can be started via an IDE by opening the `org.example.Main` class.
-
-## GitHub
-
-Project repository:
-
-https://github.com/Saedkan/Online-Shop
+All tests must pass with green status.
