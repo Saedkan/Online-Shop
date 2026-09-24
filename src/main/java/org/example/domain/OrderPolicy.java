@@ -7,6 +7,10 @@ public class OrderPolicy {
             throw new IllegalArgumentException("Order ID cannot be null");
         }
 
+        if (from == null && to == null) {
+            throw new IllegalArgumentException("Order status cannot be null");
+        }
+
         if (from == OrderStatus.CART && to == OrderStatus.PAID) {
             return to;
         }
