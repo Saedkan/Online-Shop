@@ -1,55 +1,78 @@
 # Online Shop
 
-We build an **online shop platform**. People track **orders** (items in cart, 
-purchases, deliveries).
+CSS-3008 Lab 2 — Join Spring Boot to your product.
 
 ## Product
 
-An order management system that validates state transitions for e-commerce orders. The system ensures orders flow through proper lifecycle stages without invalid state changes.
+Online Shop is an order management system for an e-commerce process.
 
-## Core item
+An order moves through a controlled lifecycle:
 
-**Order** - A core business entity identified by OrderId, tracked through its lifecycle with status changes: CART → PAID → SHIPPED → DELIVERED → RETURNED (optional).
+`CART → PAID → SHIPPED → DELIVERED`
 
-## Status table
+A return is handled as a separate process.
 
-| From | To | Allowed? | 
-|------|-----|----------|
-| CART | PAID | ✅ |
-| PAID | SHIPPED | ✅ |
-| DELIVERED | RETURNED | ❌ |
-| SHIPPED | CART | ❌ |
+## Business Rules
 
-## Forbidden — why
+| From      | To       | Allowed? |
+| --------- | -------- | -------- |
+| CART      | PAID     | Yes      |
+| PAID      | SHIPPED  | Yes      |
+| DELIVERED | RETURNED | No       |
+| SHIPPED   | CART     | No       |
 
-1. **DELIVERED → RETURNED**: Cannot return a delivered order directly. Must use the separate return process with approval workflow.
+### Forbidden transitions
 
-2. **SHIPPED → CART**: Cannot move a shipped order back to cart. Order is already in logistics and cannot be reverted.
+1. `DELIVERED → RETURNED`
 
----
+A delivered order cannot be returned directly. It must go through a separate return process.
+
+2. `SHIPPED → CART`
+
+A shipped order is already in logistics and cannot be moved back to the cart.
 
 ## Technologies
 
 - Java 21
+- Spring Boot 3.3.0
 - Maven
 - JUnit 5
 
-## Project Structure
+Arrows point inward.
 
-```text
-src/
-├── main/java/org/example/
-│   ├── OrderId.java
-│   ├── OrderStatus.java
-│   └── OrderPolicy.java
-└── test/java/org/example/
-    └── OrderPolicyTest.java
-```
+The domain layer does not import Spring.
 
-## Building and Running
+Spring is used at the application/configuration edge.
+
+## Spring Integration
+
+`Application` starts the Spring Boot application.
+
+`OrderService` is a Spring `@Service` and receives a `Rule` through constructor injection.
+
+The `Rule` bean is configured in `Config`.
+
+The domain classes remain plain Java classes and do not contain Spring annotations or imports.
+
+## Rule Chain
+
+The application uses two collaborating rule implementations:
+
+- `TransitionRule` — validates the normal order lifecycle.
+- `ForbiddenRule` — blocks forbidden business transitions.
+
+They are combined by `RuleChain` and injected into `OrderService` through the `Rule` interface.
+
+## Running Tests
 
 ```bash
-mvn clean test
+mvn -q verify
 ```
 
-All tests must pass with green status.
+## Running the Application
+
+```bash
+mvn spring-boot:run
+```
+
+The application does not require REST, a database, or Docker for this lab.

@@ -1,10 +1,14 @@
-package org.example;
+package org.example.domain;
 
 public class OrderPolicy {
 
     public OrderStatus move(OrderId id, OrderStatus from, OrderStatus to) {
         if (id == null) {
             throw new IllegalArgumentException("Order ID cannot be null");
+        }
+
+        if (from == null && to == null) {
+            throw new IllegalArgumentException("Order status cannot be null");
         }
 
         if (from == OrderStatus.CART && to == OrderStatus.PAID) {
