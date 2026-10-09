@@ -14,7 +14,7 @@ public class TransitionRule implements Rule {
                 || (from == OrderStatus.PAID && to == OrderStatus.SHIPPED);
 
         if (!validTransition) {
-            throw new IllegalArgumentException(
+            throw new IllegalStateException(
                     "Invalid order status transition: " + from + " to " + to
             );
         }

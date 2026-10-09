@@ -7,7 +7,7 @@ public class OrderPolicy {
             throw new IllegalArgumentException("Order ID cannot be null");
         }
 
-        if (from == null && to == null) {
+        if (from == null || to == null) {
             throw new IllegalArgumentException("Order status cannot be null");
         }
 
@@ -20,18 +20,18 @@ public class OrderPolicy {
         }
 
         if (from == OrderStatus.DELIVERED && to == OrderStatus.RETURNED) {
-            throw new IllegalArgumentException(
+            throw new IllegalStateException(
                     "Cannot return a delivered order directly. Please use the separate return process."
             );
         }
 
         if (from == OrderStatus.SHIPPED && to == OrderStatus.CART) {
-            throw new IllegalArgumentException(
+            throw new IllegalStateException(
                     "Cannot move a shipped order back to cart. Order is already in logistics."
             );
         }
 
-        throw new IllegalArgumentException(
+        throw new IllegalStateException(
                 "Invalid order status transition: " + from + " → " + to
         );
     }

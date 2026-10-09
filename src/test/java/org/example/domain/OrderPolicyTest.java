@@ -28,7 +28,7 @@ class OrderPolicyTest {
         if (isAllowed(fromStatus, toStatus)) {
             assertEquals(toStatus, policy.move(id, fromStatus, toStatus));
         } else {
-            assertThrows(IllegalArgumentException.class,
+            assertThrows(IllegalStateException.class,
                     () -> policy.move(id, fromStatus, toStatus));
         }
     }
@@ -61,7 +61,7 @@ class OrderPolicyTest {
     @Test
     void testInvalidTransitionThrowsException() {
         OrderId id = new OrderId("ORD-123");
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(IllegalStateException.class,
                 () -> policy.move(id, OrderStatus.CART, OrderStatus.DELIVERED));
     }
 }

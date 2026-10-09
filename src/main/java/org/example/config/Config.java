@@ -6,6 +6,7 @@ import org.example.domain.RuleChain;
 import org.example.domain.TransitionRule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import java.util.List;
 
@@ -13,17 +14,19 @@ import java.util.List;
 public class Config {
 
     @Bean
-    public Rule transitionRule() {
+    public TransitionRule transitionRule() {
         return new TransitionRule();
     }
 
     @Bean
-    public Rule forbiddenRule() {
+    public ForbiddenRule forbiddenRule() {
         return new ForbiddenRule();
     }
 
+    // @Primary: three beans implement Rule, the service must get the chain.
     @Bean
-    public Rule rule(Rule transitionRule, Rule forbiddenRule) {
+    @Primary
+    public Rule rule(TransitionRule transitionRule, ForbiddenRule forbiddenRule) {
         return new RuleChain(
                 List.of(transitionRule, forbiddenRule)
         );
