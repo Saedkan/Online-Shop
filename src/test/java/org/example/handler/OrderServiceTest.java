@@ -7,7 +7,7 @@ import org.example.domain.OrderStatus;
 import org.example.domain.Rule;
 import org.example.domain.RuleChain;
 import org.example.domain.TransitionRule;
-import org.example.persistence.OrderJdbc;
+import org.example.persistence.OrderJpa;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 /** Plain unit test: no Spring, no database. The outbound port is a Mockito mock. */
 class OrderServiceTest {
 
-    private OrderJdbc orders;
+    private OrderJpa orders;
     private OrderNotifier notifier;   // mocked outbound port
     private OrderService service;
 
@@ -38,7 +38,7 @@ class OrderServiceTest {
                         new ForbiddenRule()
                 )
         );
-        orders = mock(OrderJdbc.class);
+        orders = mock(OrderJpa.class);
         notifier = mock(OrderNotifier.class);
         service = new OrderService(rule, orders, notifier);
     }

@@ -11,8 +11,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Needs a running PostgreSQL (docker compose up -d).
+ * Flyway creates the table on startup from db/migration.
  * NO @Transactional on this class or its methods: every assertion must see
  * what production would really have committed.
  */
@@ -31,15 +30,15 @@ class OrderDatabaseTest {
     private OrderService service;
 
     @Autowired
-    private OrderJdbc orders;
+    private OrderJpa orders;
 
     @Autowired
     private JdbcTemplate jdbc;
 
     @BeforeEach
-    void cleanDatabase() throws Exception {
-        jdbc.execute("DROP TABLE IF EXISTS shop_order");
-        jdbc.execute(Files.readString(Path.of("src/main/resources/db/schema.sql")));
+    void cleanDatabase() {
+        // Schema comes from Flyway; tests only empty the table.
+        jdbc.execute("TRUNCATE TABLE shop_order");
     }
 
     @Test
