@@ -4,7 +4,7 @@ import org.example.domain.OrderId;
 import org.example.domain.OrderNotifier;
 import org.example.domain.OrderStatus;
 import org.example.domain.Rule;
-import org.example.persistence.OrderJdbc;
+import org.example.persistence.OrderJpa;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,10 +13,10 @@ import java.util.UUID;
 @Service
 public class OrderService {
     private final Rule rule;
-    private final OrderJdbc orders;
+    private final OrderJpa orders;
     private final OrderNotifier notifier;
 
-    public OrderService(Rule rule, OrderJdbc orders, OrderNotifier notifier) {
+    public OrderService(Rule rule, OrderJpa orders, OrderNotifier notifier) {
         this.rule = rule;
         this.orders = orders;
         this.notifier = notifier;
