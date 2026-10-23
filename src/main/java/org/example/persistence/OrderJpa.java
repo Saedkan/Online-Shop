@@ -4,10 +4,9 @@ import jakarta.persistence.EntityManager;
 import org.example.domain.DuplicateOrder;
 import org.example.domain.OrderStatus;
 import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
-import org.example.persistence.OrderJpaRepository;
 
+import java.sql.SQLException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,9 +34,9 @@ public class OrderJpa {
             // otherwise the duplicate would escape this try/catch.
             em.persist(new OrderEntity(id, businessKey, status, title));
             em.flush();
-        } catch (DataIntegrityViolationException ex) {
-            // Only a unique violation (SQLState 23505) is a duplicate.
-            // A CHECK or NOT NULL violation must not look like one.
+        } catch (RuntimeException ex) {
+            // flush() throws Hibernate's exception here. Spring wraps it as
+            // DataIntegrityViolationException only after this method returns.
             if (isUniqueViolation(ex)) {
                 throw new DuplicateOrder(businessKey);
             }
@@ -58,6 +57,9 @@ public class OrderJpa {
         for (Throwable t = ex; t != null; t = t.getCause()) {
             if (t instanceof ConstraintViolationException cve
                     && UNIQUE_VIOLATION.equals(cve.getSQLState())) {
+                return true;
+            }
+            if (t instanceof SQLException sql && UNIQUE_VIOLATION.equals(sql.getSQLState())) {
                 return true;
             }
         }

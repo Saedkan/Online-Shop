@@ -9,6 +9,7 @@ import org.example.domain.RuleChain;
 import org.example.domain.TransitionRule;
 import org.example.persistence.OrderJpa;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -27,7 +28,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class OrderServiceTest {
 
     private OrderJpa orders;
-    private OrderNotifier notifier;   // mocked outbound port
+    private OrderNotifier notifier;
     private OrderService service;
 
     @BeforeEach
@@ -43,63 +44,71 @@ class OrderServiceTest {
         service = new OrderService(rule, orders, notifier);
     }
 
-    @Test
-    void cartCanBecomePaid() {
-        assertEquals(OrderStatus.PAID,
-                service.move(OrderStatus.CART, OrderStatus.PAID));
+    @Nested
+    class StatusTransitions {
+
+        @Test
+        void cartCanBecomePaid() {
+            assertEquals(OrderStatus.PAID,
+                    service.move(OrderStatus.CART, OrderStatus.PAID));
+        }
+
+        @Test
+        void paidCanBecomeShipped() {
+            assertEquals(OrderStatus.SHIPPED,
+                    service.move(OrderStatus.PAID, OrderStatus.SHIPPED));
+        }
+
+        @Test
+        void cartCannotBecomeDelivered() {
+            assertThrows(IllegalStateException.class,
+                    () -> service.move(OrderStatus.CART, OrderStatus.DELIVERED));
+        }
+
+        @Test
+        void shippedCannotReturnToCart() {
+            assertThrows(IllegalStateException.class,
+                    () -> service.move(OrderStatus.SHIPPED, OrderStatus.CART));
+        }
+
+        @Test
+        void deliveredCannotBecomeReturnedDirectly() {
+            assertThrows(IllegalStateException.class,
+                    () -> service.move(OrderStatus.DELIVERED, OrderStatus.RETURNED));
+        }
     }
 
-    @Test
-    void paidCanBecomeShipped() {
-        assertEquals(OrderStatus.SHIPPED,
-                service.move(OrderStatus.PAID, OrderStatus.SHIPPED));
-    }
+    @Nested
+    class Register {
 
-    @Test
-    void cartCannotBecomeDelivered() {
-        assertThrows(IllegalStateException.class,
-                () -> service.move(OrderStatus.CART, OrderStatus.DELIVERED));
-    }
+        @Test
+        void registerInsertsAndNotifiesThroughThePort() {
+            UUID id = UUID.randomUUID();
 
-    @Test
-    void shippedCannotReturnToCart() {
-        assertThrows(IllegalStateException.class,
-                () -> service.move(OrderStatus.SHIPPED, OrderStatus.CART));
-    }
+            service.register(id, "ORD-19", "Laptop");
 
-    @Test
-    void deliveredCannotBecomeReturnedDirectly() {
-        assertThrows(IllegalStateException.class,
-                () -> service.move(OrderStatus.DELIVERED, OrderStatus.RETURNED));
-    }
+            verify(orders).insert(id, "ORD-19", OrderStatus.CART, "Laptop");
+            verify(notifier).registered("ORD-19");
+        }
 
-    @Test
-    void registerInsertsAndNotifiesThroughThePort() {
-        UUID id = UUID.randomUUID();
+        @Test
+        void duplicateDoesNotNotify() {
+            UUID id = UUID.randomUUID();
+            doThrow(new DuplicateOrder("ORD-19"))
+                    .when(orders).insert(any(), any(), any(), any());
 
-        service.register(id, "ORD-19", "Laptop");
+            assertThrows(DuplicateOrder.class,
+                    () -> service.register(id, "ORD-19", "Again"));
 
-        verify(orders).insert(id, "ORD-19", OrderStatus.CART, "Laptop");
-        verify(notifier).registered("ORD-19");
-    }
+            verify(notifier, never()).registered(any());
+        }
 
-    @Test
-    void duplicateDoesNotNotify() {
-        UUID id = UUID.randomUUID();
-        doThrow(new DuplicateOrder("ORD-19"))
-                .when(orders).insert(any(), any(), any(), any());
+        @Test
+        void blankBusinessKeyIsRejectedBeforeAnyIo() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.register(UUID.randomUUID(), "  ", "Laptop"));
 
-        assertThrows(DuplicateOrder.class,
-                () -> service.register(id, "ORD-19", "Again"));
-
-        verify(notifier, never()).registered(any());
-    }
-
-    @Test
-    void blankBusinessKeyIsRejectedBeforeAnyIo() {
-        assertThrows(IllegalArgumentException.class,
-                () -> service.register(UUID.randomUUID(), "  ", "Laptop"));
-
-        verifyNoInteractions(orders, notifier);
+            verifyNoInteractions(orders, notifier);
+        }
     }
 }

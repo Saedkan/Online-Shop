@@ -4,7 +4,7 @@ Order management system for an e-commerce process, developed as part of CSS-3008
 
 ## Project Overview
 
-Online Shop manages orders through a controlled lifecycle. It demonstrates business rule validation, Spring Boot dependency injection, JDBC persistence, and transaction management.
+Online Shop manages orders through a controlled lifecycle. It demonstrates business rule validation, Spring Boot dependency injection, JPA/Hibernate persistence, Flyway migrations, and transaction management.
 
 **Order lifecycle:**
 
@@ -33,17 +33,22 @@ A return is handled as a separate process.
 - Maven
 - JUnit 5
 - Mockito
-- PostgreSQL
-- JDBC / Spring `JdbcTemplate`
+- AssertJ (from `spring-boot-starter-test`)
+- PostgreSQL 16
+- Spring Data JPA / Hibernate
+- Flyway
+- JDBC / Spring `JdbcTemplate` (used in integration tests to probe constraints)
 
 ## Architecture
 
 The project separates business rules, application logic, persistence, and outbound integrations.
 
-- **`domain`** — Order statuses, identifiers, business rules, and domain exceptions. Domain classes remain plain Java and do not import Spring or JDBC APIs.
+- **`domain`** — Order statuses, identifiers, business rules, and domain exceptions. Domain classes remain plain Java and do not import Spring, JPA, or JDBC APIs.
 - **`handler`** — Application services that coordinate order operations.
-- **`persistence`** — JDBC repository responsible for executing SQL queries against PostgreSQL.
+- **`persistence`** — JPA entity, Spring Data repository, and adapter that talk to PostgreSQL.
 - **`outbound`** — Implementations of outbound ports, such as order notifications.
+
+`OrderPolicy` is the earlier all-in-one rule object (labs 1–2). `Rule` / `TransitionRule` / `ForbiddenRule` / `RuleChain` is the later SOLID version used by `OrderService`.
 
 ### Spring Integration
 
@@ -61,13 +66,29 @@ The `Rule` bean is configured in `Config`. `TransitionRule` and `ForbiddenRule` 
 
 The domain layer does not depend on Spring. Framework-specific configuration and annotations remain at the application boundary.
 
+### SOLID (as used here)
+
+- **S** — rules, persistence, and notifications live in different classes.
+- **O** — a new `Rule` can be added to `RuleChain` without changing `OrderService.move`.
+- **L** — any `Rule` implementation can replace another in the chain.
+- **I** — ports stay small (`Rule`, `OrderNotifier`).
+- **D** — `OrderService` depends on `Rule` and `OrderNotifier`, not on `LogOrderNotifier`.
+
 ## Database and Persistence
 
-PostgreSQL stores orders in the `shop_order` table.
+PostgreSQL stores orders in the `shop_order` table. Start it with:
 
-The database schema is defined in:
+```bash
+docker compose up -d
+```
 
-`src/main/resources/db/schema.sql`
+The schema is owned by Flyway:
+
+`src/main/resources/db/migration/V1__create_shop_order.sql`
+
+Hibernate is set to `ddl-auto: validate` — it must match Flyway, it must not create tables.
+
+`baseline-on-migrate: true` lets Flyway start on a database that already has `shop_order` from the JDBC lab but no `flyway_schema_history` table.
 
 The table contains:
 
@@ -86,9 +107,9 @@ Database constraints enforce data integrity:
 - `NOT NULL` requires mandatory fields.
 - `CHECK` restricts status values to `CART`, `PAID`, `SHIPPED`, `DELIVERED`, and `RETURNED`.
 
-### JDBC Repository
+### JPA Repository
 
-`OrderJdbc` uses Spring's `JdbcTemplate` to interact with PostgreSQL.
+`OrderJpa` uses `EntityManager` + `OrderJpaRepository` (Spring Data JPA).
 
 It provides operations to:
 
@@ -96,13 +117,15 @@ It provides operations to:
 - Count orders by business key.
 - Find an order's status.
 
-SQL statements use parameterized queries with `?` placeholders.
+When a duplicate business key is detected (`SQLState 23505`), the persistence layer converts the database exception into the domain exception `DuplicateOrder`.
 
-When a duplicate business key is detected, the persistence layer converts the database exception into the domain exception `DuplicateOrder`.
+`JdbcTemplate` is kept for tests that insert invalid rows and check constraints. There is no `OrderJdbc` class anymore; lab 5 JDBC was replaced by JPA in lab 6.
 
 ## Transaction Management
 
-`OrderService` uses `@Transactional` for order registration operations.
+`OrderService` uses `@Transactional(isolation = Isolation.READ_COMMITTED)` for order registration.
+
+`READ_COMMITTED` is PostgreSQL's default: each statement sees only data committed before that statement started. `REPEATABLE_READ` and `SERIALIZABLE` would keep one snapshot for the whole transaction.
 
 - `register()` inserts an order and invokes the notification port.
 - `insertTwice()` attempts two inserts with the same business key within one transaction.
@@ -113,7 +136,12 @@ Separate registration calls demonstrate duplicate handling: the first successful
 
 ## Testing
 
-The test suite covers business rules, application behavior, database persistence, and transaction rollback.
+| Kind | Class | What it covers |
+|---|---|---|
+| Unit | `OrderPolicyTest` | JUnit `@Nested`, `@CsvSource`, `assertAll`, `@Disabled` |
+| Unit + Mockito | `OrderServiceTest` | Mocks for `OrderJpa` and `OrderNotifier` |
+| Slice | `OrderJpaRepositorySliceTest` | `@DataJpaTest` — JPA layer only |
+| Integration | `OrderDatabaseTest` | Full Spring context + real PostgreSQL + Flyway |
 
 Run the full verification lifecycle with:
 
@@ -121,21 +149,20 @@ Run the full verification lifecycle with:
 mvn -q verify
 ```
 
-The verification should run against PostgreSQL configured for the project.
+The verification should run against PostgreSQL configured for the project (`docker compose up -d` first).
 
 ## Running the Application
 
 ### 1. Configure PostgreSQL
 
-Configure the database connection in `src/main/resources/application.properties`.
+Connection settings are in `src/main/resources/application.yml`:
 
-Example local settings:
-
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/css
-spring.datasource.username=css
-spring.datasource.password=css
-spring.datasource.driver-class-name=org.postgresql.Driver
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/css
+    username: css
+    password: css
 ```
 
 Ensure PostgreSQL is running and the database and credentials exist before starting the application.
@@ -152,8 +179,27 @@ mvn spring-boot:run
 mvn -q verify
 ```
 
+## Git (exam commands)
+
+This download is a folder, not a clone. To practise git on it:
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git status
+git log --oneline
+git branch
+git checkout -b feature/notes
+```
+
 ## Lab Scope
 
-The project evolves from plain Java business rules and Spring Boot integration in Lab 2 to JDBC persistence and transaction management in Lab 3.
+- Labs 1–2: Java / OOP (`domain`, `OrderPolicy`).
+- Lab 3: Spring Boot, annotations, constructor injection, SOLID via `Rule`.
+- Lab 4: JUnit, Mockito, slice + integration tests.
+- Lab 5: PostgreSQL, constraints, `@Transactional`, isolation. JDBC remains in tests.
+- Lab 6: Spring Data JPA and Hibernate.
+- Lab 7: Flyway.
 
-The application does not require a REST API for these labs. PostgreSQL is used for persistence in Lab 3.
+The application does not require a REST API for these labs. There is no `@WebMvcTest` because there is no web layer.
