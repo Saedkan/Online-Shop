@@ -1,9 +1,11 @@
 package org.example.persistence;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 import org.example.domain.DuplicateOrder;
+import org.example.domain.Order;
 import org.example.domain.OrderStatus;
-import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.sql.SQLException;
@@ -11,8 +13,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Persistence adapter on top of JPA/Hibernate. Same methods as the old OrderJdbc,
- * so the service layer does not change shape.
+ * Persistence adapter on top of JPA/Hibernate. The entity never leaves this class:
+ * callers get the domain record Order.
  */
 @Repository
 public class OrderJpa {
@@ -34,14 +36,22 @@ public class OrderJpa {
             // otherwise the duplicate would escape this try/catch.
             em.persist(new OrderEntity(id, businessKey, status, title));
             em.flush();
-        } catch (RuntimeException ex) {
-            // flush() throws Hibernate's exception here. Spring wraps it as
-            // DataIntegrityViolationException only after this method returns.
+        } catch (PersistenceException | DataIntegrityViolationException ex) {
+            // Inside this class the exception is still Hibernate's own (a PersistenceException):
+            // Spring converts it to DataIntegrityViolationException only after it leaves the
+            // @Repository. Both are caught so it works either way.
+            // Only a unique violation (SQLState 23505) is a duplicate.
+            // A CHECK or NOT NULL violation must not look like one.
             if (isUniqueViolation(ex)) {
                 throw new DuplicateOrder(businessKey);
             }
             throw ex;
         }
+    }
+
+    /** Read by the UUID primary key. Does not change anything. */
+    public Optional<Order> find(UUID id) {
+        return repository.findById(id).map(OrderJpa::toDomain);
     }
 
     public int count(String businessKey) {
@@ -53,12 +63,13 @@ public class OrderJpa {
         return repository.findByBusinessKey(businessKey).map(OrderEntity::getStatus);
     }
 
+    private static Order toDomain(OrderEntity e) {
+        return new Order(e.getId(), e.getBusinessKey(), e.getStatus(), e.getTitle());
+    }
+
+    /** Walks the cause chain down to the JDBC driver's SQLException and checks its SQLState. */
     private static boolean isUniqueViolation(Throwable ex) {
         for (Throwable t = ex; t != null; t = t.getCause()) {
-            if (t instanceof ConstraintViolationException cve
-                    && UNIQUE_VIOLATION.equals(cve.getSQLState())) {
-                return true;
-            }
             if (t instanceof SQLException sql && UNIQUE_VIOLATION.equals(sql.getSQLState())) {
                 return true;
             }

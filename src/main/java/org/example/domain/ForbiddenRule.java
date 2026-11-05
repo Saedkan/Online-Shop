@@ -14,4 +14,10 @@ public class ForbiddenRule implements Rule {
             );
         }
     }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
 }

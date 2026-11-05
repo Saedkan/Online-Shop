@@ -4,6 +4,8 @@ import org.example.domain.ForbiddenRule;
 import org.example.domain.Rule;
 import org.example.domain.RuleChain;
 import org.example.domain.TransitionRule;
+import org.example.outbound.DownstreamProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -11,6 +13,7 @@ import org.springframework.context.annotation.Primary;
 import java.util.List;
 
 @Configuration
+@EnableConfigurationProperties(DownstreamProperties.class)
 public class Config {
 
     @Bean
