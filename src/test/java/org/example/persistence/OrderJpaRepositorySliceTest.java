@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Slice test: JPA / Hibernate / repository only, not the full application.
- * Uses the real PostgreSQL from application.yml (no H2).
+ * Uses the real PostgreSQL from the dev profile (no H2).
  * Needs {@code docker compose up -d}.
  */
 @DataJpaTest
