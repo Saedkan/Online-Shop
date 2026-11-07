@@ -1,6 +1,8 @@
 package org.example.handler;
 
+import org.example.domain.Order;
 import org.example.domain.OrderId;
+import org.example.domain.OrderNotFound;
 import org.example.domain.OrderNotifier;
 import org.example.domain.OrderStatus;
 import org.example.domain.Rule;
@@ -27,12 +29,22 @@ public class OrderService {
         return to;
     }
 
-    /** One transaction per call. A duplicate key throws DuplicateOrder; the first row stays. */
+    /**
+     * One transaction per call. A duplicate key throws DuplicateOrder; the first row stays.
+     * Returns the order that was stored, so the web layer can answer 201 with a body.
+     */
     @Transactional
-    public void register(UUID id, String businessKey, String title) {
+    public Order register(UUID id, String businessKey, String title) {
         String key = new OrderId(businessKey).value(); // rejects null / blank
         orders.insert(id, key, OrderStatus.CART, title);
         notifier.registered(key);
+        return new Order(id, key, OrderStatus.CART, title);
+    }
+
+    /** Read only. A missing row throws OrderNotFound; it never registers or moves anything. */
+    @Transactional(readOnly = true)
+    public Order get(UUID id) {
+        return orders.find(id).orElseThrow(() -> new OrderNotFound(id));
     }
 
     /**

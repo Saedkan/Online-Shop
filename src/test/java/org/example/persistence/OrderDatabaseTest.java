@@ -5,19 +5,20 @@ import org.example.domain.DuplicateOrder;
 import org.example.domain.OrderStatus;
 import org.example.handler.OrderService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
+ * Integration test: full Spring context + real PostgreSQL.
  * Needs a running PostgreSQL (docker compose up -d).
  * Flyway creates the table on startup from db/migration.
  * NO @Transactional on this class or its methods: every assertion must see
@@ -37,49 +38,60 @@ class OrderDatabaseTest {
 
     @BeforeEach
     void cleanDatabase() {
-        // Schema comes from Flyway; tests only empty the table.
         jdbc.execute("TRUNCATE TABLE shop_order");
     }
 
-    @Test
-    void secondStatementRollsBack() {
-        assertThrows(DuplicateOrder.class,
-                () -> service.insertTwice("ORD-1042"));
+    @Nested
+    class Transactions {
 
-        assertEquals(0, orders.count("ORD-1042"));
+        @Test
+        void secondStatementRollsBack() {
+            assertThrows(DuplicateOrder.class,
+                    () -> service.insertTwice("ORD-1042"));
+
+            assertThat(orders.count("ORD-1042")).isZero();
+        }
+
+        @Test
+        void secondRequestKeepsTheFirst() {
+            UUID id1 = UUID.randomUUID();
+            UUID id2 = UUID.randomUUID();
+
+            service.register(id1, "ORD-1042", "Laptop");
+            assertThrows(DuplicateOrder.class,
+                    () -> service.register(id2, "ORD-1042", "Again"));
+
+            assertThat(orders.count("ORD-1042")).isEqualTo(1);
+        }
     }
 
-    @Test
-    void secondRequestKeepsTheFirst() {
-        UUID id1 = UUID.randomUUID();
-        UUID id2 = UUID.randomUUID();
+    @Nested
+    class Persistence {
 
-        service.register(id1, "ORD-1042", "Laptop");
-        assertThrows(DuplicateOrder.class,
-                () -> service.register(id2, "ORD-1042", "Again"));
+        @Test
+        void statusIsStoredAndReadBack() {
+            service.register(UUID.randomUUID(), "ORD-7", "Phone");
 
-        assertEquals(1, orders.count("ORD-1042"));
+            assertThat(orders.findStatus("ORD-7")).contains(OrderStatus.CART);
+            assertThat(orders.findStatus("ORD-404")).isEmpty();
+        }
     }
 
-    @Test
-    void statusIsStoredAndReadBack() {
-        service.register(UUID.randomUUID(), "ORD-7", "Phone");
+    @Nested
+    class Constraints {
 
-        assertEquals(Optional.of(OrderStatus.CART), orders.findStatus("ORD-7"));
-        assertEquals(Optional.empty(), orders.findStatus("ORD-404"));
-    }
+        @Test
+        void checkConstraintRejectsUnknownStatus() {
+            assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
+                    "INSERT INTO shop_order (id, business_key, status, title) VALUES (?, ?, ?, ?)",
+                    UUID.randomUUID(), "ORD-8", "LOST", "Bad status"));
+        }
 
-    @Test
-    void checkConstraintRejectsUnknownStatus() {
-        assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
-                "INSERT INTO shop_order (id, business_key, status, title) VALUES (?, ?, ?, ?)",
-                UUID.randomUUID(), "ORD-8", "LOST", "Bad status"));
-    }
-
-    @Test
-    void nullBusinessKeyIsRejectedByNotNull() {
-        assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
-                "INSERT INTO shop_order (id, business_key, status, title) VALUES (?, ?, ?, ?)",
-                UUID.randomUUID(), null, "CART", "No key"));
+        @Test
+        void nullBusinessKeyIsRejectedByNotNull() {
+            assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
+                    "INSERT INTO shop_order (id, business_key, status, title) VALUES (?, ?, ?, ?)",
+                    UUID.randomUUID(), null, "CART", "No key"));
+        }
     }
 }
