@@ -2,6 +2,7 @@ package org.example.handler;
 
 import org.example.domain.DuplicateOrder;
 import org.example.domain.ForbiddenRule;
+import org.example.domain.Order;
 import org.example.domain.OrderNotifier;
 import org.example.domain.OrderStatus;
 import org.example.domain.Rule;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /** Plain unit test: no Spring, no database. The outbound port is a Mockito mock. */
 class OrderServiceTest {
@@ -75,6 +77,34 @@ class OrderServiceTest {
         void deliveredCannotBecomeReturnedDirectly() {
             assertThrows(IllegalStateException.class,
                     () -> service.move(OrderStatus.DELIVERED, OrderStatus.RETURNED));
+        }
+    }
+
+    @Nested
+    class Pay {
+
+        @Test
+        void cartBecomesPaidAndPersists() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.CART, "Laptop")));
+            when(orders.updateStatus(id, OrderStatus.PAID)).thenReturn(
+                    new Order(id, "ORD-19", OrderStatus.PAID, "Laptop"));
+
+            Order paid = service.pay(id, "manager-dev");
+
+            assertEquals(OrderStatus.PAID, paid.status());
+            verify(orders).updateStatus(id, OrderStatus.PAID);
+        }
+
+        @Test
+        void forbiddenTransitionDoesNotUpdate() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.SHIPPED, "Laptop")));
+
+            assertThrows(IllegalStateException.class, () -> service.pay(id, "manager-dev"));
+            verify(orders, never()).updateStatus(any(), any());
         }
     }
 

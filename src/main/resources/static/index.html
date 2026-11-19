@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Online Shop — Auth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+  <main class="shell">
+    <header class="brand-block">
+      <p class="eyebrow">CSS-3008 · Lab 5</p>
+      <h1 class="brand">Online Shop</h1>
+      <p class="lede">Order lifecycle auth desk. Roles gate who may <strong>pay</strong> a cart.</p>
+      <ul class="roles" aria-label="Roles">
+        <li><span class="role-name">CLERK</span> — create and read orders</li>
+        <li><span class="role-name">MANAGER</span> — pay (CART → PAID)</li>
+      </ul>
+      <p class="dev- creds">
+        Dev-only logins (same password for both):
+        <code>clerk-dev</code> / <code>manager-dev</code> · password <code>css-lab5</code>
+      </p>
+    </header>
+
+    <section id="login-panel" class="panel">
+      <h2>Sign in</h2>
+      <form id="login-form" autocomplete="on">
+        <label>
+          Username
+          <input id="username" name="username" type="text" required autocomplete="username">
+        </label>
+        <label>
+          Password
+          <input id="password" name="password" type="password" required autocomplete="current-password">
+        </label>
+        <button type="submit">Log in</button>
+      </form>
+    </section>
+
+    <section id="session-panel" class="panel hidden">
+      <h2>Signed in</h2>
+      <p id="session-summary" class="session-summary"></p>
+      <div class="actions">
+        <button type="button" id="btn-create">Create order</button>
+        <button type="button" id="btn-pay" class="accent">Pay order</button>
+        <button type="button" id="btn-logout" class="ghost">Log out</button>
+      </div>
+      <p id="order-hint" class="hint">Create an order first, then try pay as CLERK (403) or MANAGER (200).</p>
+    </section>
+
+    <section id="result-panel" class="panel result hidden" aria-live="polite">
+      <h2>Result</h2>
+      <pre id="result-body"></pre>
+    </section>
+  </main>
+  <script src="/js/auth.js"></script>
+</body>
+</html>

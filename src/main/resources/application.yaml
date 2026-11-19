@@ -39,3 +39,7 @@ management:
 info:
   app:
     name: Online Shop
+
+app:
+  jwt:
+    issuer: online-shop
