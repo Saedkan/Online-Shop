@@ -53,6 +53,28 @@ public class OrderService {
     }
 
     /**
+     * Update title while the order is still in CART. Business key and status are not edited here.
+     * Paid / shipped / delivered orders are immutable → IllegalStateException (409).
+     */
+    @Transactional
+    public Order update(UUID id, String title) {
+        Order current = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
+        requireCart(current, "updated");
+        return orders.updateTitle(id, title);
+    }
+
+    /**
+     * Delete only a CART order. Once paid, the row stays for the lifecycle.
+     */
+    @Transactional
+    public void delete(UUID id) {
+        Order current = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
+        requireCart(current, "deleted");
+        orders.delete(id);
+        log.info("order {} deleted ({})", id, current.businessKey());
+    }
+
+    /**
      * Locked status change: CART → PAID. URL rule and @PreAuthorize both require MANAGER.
      * Domain policy stays plain Java via Rule — no Spring types in domain.
      */
@@ -64,6 +86,13 @@ public class OrderService {
         Order paid = orders.updateStatus(id, OrderStatus.PAID);
         log.info("order {} paid by {}", id, actor);
         return paid;
+    }
+
+    private static void requireCart(Order order, String action) {
+        if (order.status() != OrderStatus.CART) {
+            throw new IllegalStateException(
+                    "only CART orders can be " + action + "; current status is " + order.status());
+        }
     }
 
     /**

@@ -62,6 +62,20 @@ public class OrderJpa {
         return toDomain(entity);
     }
 
+    /** Persist a new title. Caller already checked the order may still be edited. */
+    public Order updateTitle(UUID id, String title) {
+        OrderEntity entity = repository.findById(id).orElseThrow();
+        entity.setTitle(title);
+        em.flush();
+        return toDomain(entity);
+    }
+
+    /** Hard delete by UUID. Caller already checked the order may be removed. */
+    public void delete(UUID id) {
+        repository.deleteById(id);
+        em.flush();
+    }
+
     public int count(String businessKey) {
         return repository.countByBusinessKey(businessKey);
     }

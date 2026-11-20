@@ -17,8 +17,8 @@
       <h1 class="brand">Online Shop</h1>
       <p class="lede">Order lifecycle auth desk. Roles gate who may <strong>pay</strong> a cart.</p>
       <ul class="roles" aria-label="Roles">
-        <li><span class="role-name">CLERK</span> — create and read orders</li>
-        <li><span class="role-name">MANAGER</span> — pay (CART → PAID)</li>
+        <li><span class="role-name">CLERK</span> — create, read, update, delete (CART only)</li>
+        <li><span class="role-name">MANAGER</span> — same CRUD + pay (CART → PAID)</li>
       </ul>
       <p class="dev- creds">
         Dev-only logins (same password for both):
@@ -45,11 +45,14 @@
       <h2>Signed in</h2>
       <p id="session-summary" class="session-summary"></p>
       <div class="actions">
-        <button type="button" id="btn-create">Create order</button>
-        <button type="button" id="btn-pay" class="accent">Pay order</button>
+        <button type="button" id="btn-create">Create</button>
+        <button type="button" id="btn-read">Read</button>
+        <button type="button" id="btn-update">Update title</button>
+        <button type="button" id="btn-delete">Delete</button>
+        <button type="button" id="btn-pay" class="accent">Pay</button>
         <button type="button" id="btn-logout" class="ghost">Log out</button>
       </div>
-      <p id="order-hint" class="hint">Create an order first, then try pay as CLERK (403) or MANAGER (200).</p>
+      <p id="order-hint" class="hint">Create an order first. Update/delete work only in CART. Pay is MANAGER-only.</p>
     </section>
 
     <section id="result-panel" class="panel result hidden" aria-live="polite">

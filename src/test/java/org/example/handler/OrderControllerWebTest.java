@@ -26,12 +26,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -149,5 +152,77 @@ class OrderControllerWebTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION"))
                 .andExpect(jsonPath("$.correlationId").value("caller-corr-42"));
+    }
+
+    @Test
+    void updateReturns200WithNewTitle() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(service.update(id, "Phone"))
+                .thenReturn(new Order(id, "ORD-1", OrderStatus.CART, "Phone"));
+
+        mockMvc.perform(put("/api/v1/orders/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Phone"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id.toString()))
+                .andExpect(jsonPath("$.title").value("Phone"))
+                .andExpect(jsonPath("$.status").value("CART"));
+    }
+
+    @Test
+    void updateBlankTitleIs400AndDoesNotCallService() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/orders/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION"));
+
+        verify(service, never()).update(any(), any());
+    }
+
+    @Test
+    void updatePaidOrderIs409() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(service.update(id, "Phone"))
+                .thenThrow(new IllegalStateException("only CART orders can be updated; current status is PAID"));
+
+        mockMvc.perform(put("/api/v1/orders/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Phone"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
+    }
+
+    @Test
+    void deleteReturns204() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/v1/orders/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK"))))
+                .andExpect(status().isNoContent());
+
+        verify(service).delete(id);
+    }
+
+    @Test
+    void deleteMissingIs404() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new OrderNotFound(id)).when(service).delete(id);
+
+        mockMvc.perform(delete("/api/v1/orders/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 }

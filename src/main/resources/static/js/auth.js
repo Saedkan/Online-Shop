@@ -122,6 +122,66 @@
     );
   });
 
+  document.getElementById("btn-read").addEventListener("click", async () => {
+    if (!currentOrderId) {
+      showResult("Create an order first.", "warn");
+      return;
+    }
+    const { response, body } = await api(`/api/v1/orders/${currentOrderId}`);
+    if (!response.ok) {
+      showResult(formatError(response.status, body), "error");
+      return;
+    }
+    showResult(
+      `HTTP ${response.status}\n` +
+      `id: ${body.id}\n` +
+      `businessKey: ${body.businessKey}\n` +
+      `title: ${body.title}\n` +
+      `status: ${body.status}`,
+      null
+    );
+  });
+
+  document.getElementById("btn-update").addEventListener("click", async () => {
+    if (!currentOrderId) {
+      showResult("Create an order first.", "warn");
+      return;
+    }
+    const title = `Updated ${new Date().toLocaleTimeString()}`;
+    const { response, body } = await api(`/api/v1/orders/${currentOrderId}`, {
+      method: "PUT",
+      body: JSON.stringify({ title })
+    });
+    if (!response.ok) {
+      showResult(formatError(response.status, body), "error");
+      return;
+    }
+    orderHint.textContent = `Last order ${body.id} · status ${body.status} · title ${body.title}`;
+    showResult(
+      `HTTP ${response.status}\n` +
+      `id: ${body.id}\n` +
+      `title: ${body.title}\n` +
+      `status: ${body.status}`,
+      null
+    );
+  });
+
+  document.getElementById("btn-delete").addEventListener("click", async () => {
+    if (!currentOrderId) {
+      showResult("Create an order first.", "warn");
+      return;
+    }
+    const id = currentOrderId;
+    const { response, body } = await api(`/api/v1/orders/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      showResult(formatError(response.status, body), "error");
+      return;
+    }
+    currentOrderId = null;
+    orderHint.textContent = "Order deleted. Create a new one to continue.";
+    showResult(`HTTP ${response.status} — order ${id} deleted`, null);
+  });
+
   document.getElementById("btn-pay").addEventListener("click", async () => {
     if (!currentOrderId) {
       showResult("Create an order first so there is an id to pay.", "warn");

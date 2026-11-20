@@ -11,9 +11,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -71,6 +73,36 @@ public class OrderController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public OrderResponse get(@PathVariable UUID id) {
         return OrderResponse.from(service.get(id));
+    }
+
+    @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Update order title (CART only)")
+    @ApiResponse(responseCode = "200", description = "Title updated",
+            content = @Content(schema = @Schema(implementation = OrderResponse.class)))
+    @ApiResponse(responseCode = "400", description = "VALIDATION: blank title or title over 120",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "401", description = "UNAUTHENTICATED: valid token required",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "NOT_FOUND: the UUID is valid but no such order",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "CONFLICT: only CART orders can be updated",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public OrderResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateOrderRequest request) {
+        return OrderResponse.from(service.update(id, request.title()));
+    }
+
+    @DeleteMapping(path = "/{id}")
+    @Operation(summary = "Delete one order (CART only)")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @ApiResponse(responseCode = "204", description = "Deleted")
+    @ApiResponse(responseCode = "401", description = "UNAUTHENTICATED: valid token required",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "NOT_FOUND: the UUID is valid but no such order",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "CONFLICT: only CART orders can be deleted",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public void delete(@PathVariable UUID id) {
+        service.delete(id);
     }
 
     @PostMapping(path = "/{id}/pay", produces = MediaType.APPLICATION_JSON_VALUE)
