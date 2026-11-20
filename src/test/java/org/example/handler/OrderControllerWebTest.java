@@ -5,11 +5,17 @@ import org.example.domain.DuplicateOrder;
 import org.example.domain.Order;
 import org.example.domain.OrderNotFound;
 import org.example.domain.OrderStatus;
+import org.example.security.ApiAccessDeniedHandler;
+import org.example.security.ApiAuthenticationEntryPoint;
+import org.example.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -23,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,9 +37,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Web slice: HTTP contract only. The service is mocked; PostgreSQL does not start.
+ * Lab 4 statuses still hold — calls that need a role now send a JWT.
  */
 @WebMvcTest(controllers = OrderController.class)
-@Import(ApiExceptionHandler.class)
+@Import({
+        OrderController.class,
+        ApiExceptionHandler.class,
+        SecurityConfig.class,
+        ApiAuthenticationEntryPoint.class,
+        ApiAccessDeniedHandler.class
+})
 class OrderControllerWebTest {
 
     @Autowired
@@ -40,6 +54,12 @@ class OrderControllerWebTest {
 
     @MockitoBean
     private OrderService service;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private AuthenticationManager authenticationManager;
 
     @Test
     void createReturns201WithLocationAndBody() throws Exception {
@@ -51,6 +71,7 @@ class OrderControllerWebTest {
                         "Laptop"));
 
         MvcResult result = mockMvc.perform(post("/api/v1/orders")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"businessKey":"ORD-1","title":"Laptop"}
@@ -69,6 +90,7 @@ class OrderControllerWebTest {
     @Test
     void blankTitleIs400AndDoesNotCallService() throws Exception {
         mockMvc.perform(post("/api/v1/orders")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"businessKey":"ORD-1","title":""}
@@ -85,7 +107,8 @@ class OrderControllerWebTest {
         UUID id = UUID.randomUUID();
         when(service.get(id)).thenThrow(new OrderNotFound(id));
 
-        mockMvc.perform(get("/api/v1/orders/{id}", id))
+        mockMvc.perform(get("/api/v1/orders/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -96,6 +119,7 @@ class OrderControllerWebTest {
                 .thenThrow(new DuplicateOrder("ORD-1"));
 
         mockMvc.perform(post("/api/v1/orders")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"businessKey":"ORD-1","title":"Again"}
@@ -106,7 +130,8 @@ class OrderControllerWebTest {
 
     @Test
     void businessKeyInPathIs400() throws Exception {
-        mockMvc.perform(get("/api/v1/orders/{id}", "ORD-1"))
+        mockMvc.perform(get("/api/v1/orders/{id}", "ORD-1")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION"))
                 .andExpect(jsonPath("$.message").value(containsString("id must be a UUID")));
@@ -115,6 +140,7 @@ class OrderControllerWebTest {
     @Test
     void correlationHeaderIsEchoedOn400() throws Exception {
         mockMvc.perform(post("/api/v1/orders")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLERK")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(ApiExceptionHandler.CORRELATION_HEADER, "caller-corr-42")
                         .content("""

@@ -1,9 +1,8 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/css
-    username: css
-    password: css
-
+  application:
+    name: Online Shop
+  profiles:
+    default: dev
   jpa:
     open-in-view: false
     hibernate:
@@ -12,9 +11,31 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   flyway:
     enabled: true
     locations: classpath:db/migration
     # Local DB already has shop_order from earlier JDBC labs, but no flyway_schema_history.
     baseline-on-migrate: true
+
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Online Shop

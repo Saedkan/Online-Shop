@@ -54,6 +54,14 @@ public class OrderJpa {
         return repository.findById(id).map(OrderJpa::toDomain);
     }
 
+    /** Persist a new status for an existing row. Caller already validated the transition. */
+    public Order updateStatus(UUID id, OrderStatus status) {
+        OrderEntity entity = repository.findById(id).orElseThrow();
+        entity.setStatus(status);
+        em.flush();
+        return toDomain(entity);
+    }
+
     public int count(String businessKey) {
         return repository.countByBusinessKey(businessKey);
     }

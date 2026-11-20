@@ -64,6 +64,16 @@ public class ApiExceptionHandler {
         return build(HttpStatus.CONFLICT, "DUPLICATE", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(LoginFailedException.class)
+    ResponseEntity<ApiError> loginFailed(LoginFailedException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    ResponseEntity<ApiError> domainConflict(IllegalStateException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "CONFLICT", ex.getMessage(), request);
+    }
+
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     ResponseEntity<ApiError> unsupportedMediaType(HttpServletRequest request) {
         return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED", "content type must be application/json", request);

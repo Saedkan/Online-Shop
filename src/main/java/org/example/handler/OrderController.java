@@ -10,6 +10,7 @@ import org.example.domain.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +45,8 @@ public class OrderController {
             content = @Content(schema = @Schema(implementation = OrderResponse.class)))
     @ApiResponse(responseCode = "400", description = "VALIDATION: blank field, title over 120, body is not JSON",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "401", description = "UNAUTHENTICATED: valid token required",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "DUPLICATE: this business key is already stored",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ResponseEntity<OrderResponse> create(@Valid @RequestBody CreateOrderRequest request) {
@@ -62,9 +65,27 @@ public class OrderController {
             content = @Content(schema = @Schema(implementation = OrderResponse.class)))
     @ApiResponse(responseCode = "400", description = "VALIDATION: id is not a UUID",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "401", description = "UNAUTHENTICATED: valid token required",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "NOT_FOUND: the UUID is valid but no such order",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public OrderResponse get(@PathVariable UUID id) {
         return OrderResponse.from(service.get(id));
+    }
+
+    @PostMapping(path = "/{id}/pay", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Pay an order (CART → PAID). MANAGER only.")
+    @ApiResponse(responseCode = "200", description = "Order paid; status is PAID",
+            content = @Content(schema = @Schema(implementation = OrderResponse.class)))
+    @ApiResponse(responseCode = "401", description = "UNAUTHENTICATED: valid token required",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "FORBIDDEN: not allowed for your role",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "NOT_FOUND: the UUID is valid but no such order",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "CONFLICT: domain policy forbids this transition",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public OrderResponse pay(@PathVariable UUID id, Authentication authentication) {
+        return OrderResponse.from(service.pay(id, authentication.getName()));
     }
 }

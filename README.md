@@ -4,7 +4,7 @@ Order management system for an e-commerce process, developed as part of CSS-3008
 
 ## Project Overview
 
-Online Shop manages orders through a controlled lifecycle. It demonstrates business rule validation, Spring Boot dependency injection, JPA/Hibernate persistence, Flyway migrations, and transaction management.
+Online Shop manages orders through a controlled lifecycle. It demonstrates business rule validation, Spring Boot dependency injection, JPA/Hibernate persistence, Flyway migrations, a REST contract, JWT security, and transaction management.
 
 **Order lifecycle:**
 
@@ -26,53 +26,78 @@ A return is handled as a separate process.
 1. **`DELIVERED → RETURNED`** — A delivered order cannot be returned directly. It must go through a separate return process.
 2. **`SHIPPED → CART`** — A shipped order is already in logistics and cannot be moved back to the cart.
 
+## Authorization Rules (Lab 5)
+
+Roles: **CLERK** (junior) and **MANAGER** (senior). Locked action: **`pay`** (`CART → PAID`).
+
+| Action | CLERK | MANAGER | No token |
+|---|---|---|---|
+| `POST /api/v1/auth/login` | anyone | anyone | allowed |
+| Create and read orders | yes | yes | 401 |
+| Locked status change `POST /api/v1/orders/{id}/pay` | 403 | yes | 401 |
+| `GET /api/me` | yes | yes | 401 |
+| `GET /actuator/health` | anyone | anyone | allowed |
+| springdoc UI and `/v3/api-docs/**` | anyone | anyone | allowed |
+| Anything else | 403 | 403 | 401 |
+
+- No token → **401** `UNAUTHENTICATED` (`valid token required` on API calls; `bad username or password` on failed login).
+- CLERK on `pay` → **403** `FORBIDDEN` (`not allowed for your role`); the row does not change; the service is not called.
+- MANAGER on `pay` (policy allows) → success; status becomes `PAID`. Actor is `Authentication.getName()`.
+
 ## Technologies
 
 - Java 21
-- Spring Boot 3.3.0
+- Spring Boot 3.4.5
 - Maven
-- JUnit 5
-- Mockito
-- AssertJ (from `spring-boot-starter-test`)
-- PostgreSQL 16
+- Spring Web + Validation
+- Spring Security + OAuth2 Resource Server (JWT HS256)
+- springdoc-openapi 2.8.8
+- Spring Actuator
 - Spring Data JPA / Hibernate
 - Flyway
-- JDBC / Spring `JdbcTemplate` (used in integration tests to probe constraints)
+- PostgreSQL 16 (Docker Compose)
+- JUnit 5, Mockito, AssertJ, spring-security-test
+- JDBC / Spring `JdbcTemplate` (integration tests that probe constraints)
 
 ## Architecture
 
-The project separates business rules, application logic, persistence, and outbound integrations.
+The project separates business rules, application logic, persistence, HTTP, security, and outbound integrations.
 
-- **`domain`** — Order statuses, identifiers, business rules, and domain exceptions. Domain classes remain plain Java and do not import Spring, JPA, or JDBC APIs.
-- **`handler`** — Application services that coordinate order operations.
-- **`persistence`** — JPA entity, Spring Data repository, and adapter that talk to PostgreSQL.
-- **`outbound`** — Implementations of outbound ports, such as order notifications.
+- **`domain`** — Order statuses, identifiers, business rules, and domain exceptions. Plain Java: no Spring, no `ResponseEntity`, no `jakarta.validation`, no security annotations.
+- **`handler`** — REST controllers, request/response/error records, exception advice, and application service.
+- **`security`** — Filter chain, JWT encoder/decoder, token service, entry point / access-denied handlers, dev users.
+- **`persistence`** — JPA entity, Spring Data repository, and adapter. Jackson never sees the entity.
+- **`outbound`** — Outbound ports/adapters (notifier). Downstream URL and timeout come from yaml.
+- **`config`** — Application entry point and Spring bean configuration.
 
 `OrderPolicy` is the earlier all-in-one rule object (labs 1–2). `Rule` / `TransitionRule` / `ForbiddenRule` / `RuleChain` is the later SOLID version used by `OrderService`.
 
-### Spring Integration
+### REST
 
-`Application` starts the Spring Boot application.
+- `POST /api/v1/auth/login` — BCrypt check → `accessToken`, `tokenType` (`Bearer`), `expiresIn` (`900`)
+- `GET /api/me` — username + authorities from the token
+- `POST /api/v1/orders` — create one order → `201` + `Location` (CLERK or MANAGER)
+- `GET /api/v1/orders/{id}` — read by UUID → `200` (CLERK or MANAGER)
+- `POST /api/v1/orders/{id}/pay` — locked status change → `200` (MANAGER only)
+- Failures use `{ code, message, correlationId }`
+- OpenAPI UI: `/swagger-ui.html` (open)
+- Health: `/actuator/health` (open; only `health` and `info` are exposed)
+- Auth page: `http://localhost:8080/` (static files from `src/main/resources/static/`)
 
-`OrderService` is registered as a Spring `@Service` and receives its dependencies through constructor injection.
+### JWT
 
-The `Rule` bean is configured in `Config`. `TransitionRule` and `ForbiddenRule` are combined through `RuleChain` and injected into `OrderService` through the `Rule` interface.
+- HS256, issuer `online-shop`, lifetime 15 minutes
+- Claim `roles` carries role names **without** the `ROLE_` prefix
+- Secret: `app.jwt.secret` in profile yaml (≥ 32 characters). Prod: `${CSS_JWT_SECRET}` (no default). No secret literal in `src/main/java`.
 
-### Rule Chain
+### Dev users (`@Profile("dev")`)
 
-- `TransitionRule` validates the normal order lifecycle.
-- `ForbiddenRule` blocks forbidden business transitions.
-- `RuleChain` combines the rule implementations.
+| Username | Role | Password |
+|---|---|---|
+| `clerk-dev` | CLERK | `css-lab5` |
+| `manager-dev` | MANAGER | `css-lab5` |
 
-The domain layer does not depend on Spring. Framework-specific configuration and annotations remain at the application boundary.
-
-### SOLID (as used here)
-
-- **S** — rules, persistence, and notifications live in different classes.
-- **O** — a new `Rule` can be added to `RuleChain` without changing `OrderService.move`.
-- **L** — any `Rule` implementation can replace another in the chain.
-- **I** — ports stay small (`Rule`, `OrderNotifier`).
-- **D** — `OrderService` depends on `Rule` and `OrderNotifier`, not on `LogOrderNotifier`.
+Passwords are encoded with `PasswordEncoderFactories.createDelegatingPasswordEncoder()` (BCrypt). No `{noop}`. No user table.
 
 ## Database and Persistence
 
@@ -86,120 +111,58 @@ The schema is owned by Flyway:
 
 `src/main/resources/db/migration/V1__create_shop_order.sql`
 
-Hibernate is set to `ddl-auto: validate` — it must match Flyway, it must not create tables.
-
-`baseline-on-migrate: true` lets Flyway start on a database that already has `shop_order` from the JDBC lab but no `flyway_schema_history` table.
-
-The table contains:
+Hibernate uses `ddl-auto: validate`. `baseline-on-migrate: true` supports a DB that already has `shop_order` from earlier labs.
 
 | Column | Purpose |
 |---|---|
 | `id` | UUID primary key |
 | `business_key` | Unique business identifier for an order |
-| `status` | Current order status |
+| `status` | Current order status (stored as text) |
 | `title` | Order title |
 | `created_at` | Creation timestamp generated by PostgreSQL |
 
-Database constraints enforce data integrity:
+Constraints: `PRIMARY KEY`, `UNIQUE(business_key)`, `NOT NULL`, `CHECK` on known statuses.
 
-- `PRIMARY KEY` ensures each order has a unique ID.
-- `UNIQUE` prevents duplicate business keys.
-- `NOT NULL` requires mandatory fields.
-- `CHECK` restricts status values to `CART`, `PAID`, `SHIPPED`, `DELIVERED`, and `RETURNED`.
+A duplicate business key becomes domain `DuplicateOrder` (`SQLState 23505`).
 
-### JPA Repository
+## Configuration / Profiles
 
-`OrderJpa` uses `EntityManager` + `OrderJpaRepository` (Spring Data JPA).
+- `application.yaml` — shared settings (JPA, Flyway, error leak off, actuator, JWT issuer). No DB password. No JWT secret.
+- `application-dev.yaml` — localhost PostgreSQL `css`/`css`, downstream, JWT secret for the laptop
+- `application-prod.yaml` — `CSS_DB_*`, downstream env vars, `CSS_JWT_SECRET`
 
-It provides operations to:
-
-- Insert an order.
-- Count orders by business key.
-- Find an order's status.
-
-When a duplicate business key is detected (`SQLState 23505`), the persistence layer converts the database exception into the domain exception `DuplicateOrder`.
-
-`JdbcTemplate` is kept for tests that insert invalid rows and check constraints. There is no `OrderJdbc` class anymore; lab 5 JDBC was replaced by JPA in lab 6.
-
-## Transaction Management
-
-`OrderService` uses `@Transactional(isolation = Isolation.READ_COMMITTED)` for order registration.
-
-`READ_COMMITTED` is PostgreSQL's default: each statement sees only data committed before that statement started. `REPEATABLE_READ` and `SERIALIZABLE` would keep one snapshot for the whole transaction.
-
-- `register()` inserts an order and invokes the notification port.
-- `insertTwice()` attempts two inserts with the same business key within one transaction.
-
-If the second insert fails with the unchecked `DuplicateOrder` exception, Spring rolls back the transaction. Neither insert should remain in the database.
-
-Separate registration calls demonstrate duplicate handling: the first successful registration remains committed, while a later duplicate registration fails without removing the original row.
+`spring.profiles.default: dev`
 
 ## Testing
 
 | Kind | Class | What it covers |
 |---|---|---|
-| Unit | `OrderPolicyTest` | JUnit `@Nested`, `@CsvSource`, `assertAll`, `@Disabled` |
-| Unit + Mockito | `OrderServiceTest` | Mocks for `OrderJpa` and `OrderNotifier` |
-| Slice | `OrderJpaRepositorySliceTest` | `@DataJpaTest` — JPA layer only |
-| Integration | `OrderDatabaseTest` | Full Spring context + real PostgreSQL + Flyway |
-
-Run the full verification lifecycle with:
+| Unit | `OrderPolicyTest` | Domain rules |
+| Unit + Mockito | `OrderServiceTest` | Service with mocked ports |
+| Unit | `TokenServiceTest` | Issue JWT then decode (subject, roles, exp) |
+| Web slice | `OrderControllerWebTest` | Lab 4 201/400/404/409 with a token |
+| Web slice | `SecurityWebTest` | 401, 403, MANAGER pay, `/api/me`, health open |
+| Config | `DownstreamPropertiesTest` | `app.downstream` bound from `dev` yaml |
+| Slice | `OrderJpaRepositorySliceTest` | `@DataJpaTest` |
+| Integration | `OrderDatabaseTest` | Full context + PostgreSQL; duplicate keeps count `1` |
 
 ```bash
+docker compose up -d
 mvn -q verify
 ```
-
-The verification should run against PostgreSQL configured for the project (`docker compose up -d` first).
 
 ## Running the Application
 
-### 1. Configure PostgreSQL
-
-Connection settings are in `src/main/resources/application.yml`:
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/css
-    username: css
-    password: css
-```
-
-Ensure PostgreSQL is running and the database and credentials exist before starting the application.
-
-### 2. Start the Application
-
 ```bash
+docker compose up -d
 mvn spring-boot:run
 ```
 
-### 3. Run Tests
-
-```bash
-mvn -q verify
-```
-
-## Git (exam commands)
-
-This download is a folder, not a clone. To practise git on it:
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git status
-git log --oneline
-git branch
-git checkout -b feature/notes
-```
+Open `http://localhost:8080/` for the auth page. Log in as `clerk-dev` / `manager-dev` (password `css-lab5`).
 
 ## Lab Scope
 
-- Labs 1–2: Java / OOP (`domain`, `OrderPolicy`).
-- Lab 3: Spring Boot, annotations, constructor injection, SOLID via `Rule`.
-- Lab 4: JUnit, Mockito, slice + integration tests.
-- Lab 5: PostgreSQL, constraints, `@Transactional`, isolation. JDBC remains in tests.
-- Lab 6: Spring Data JPA and Hibernate.
-- Lab 7: Flyway.
-
-The application does not require a REST API for these labs. There is no `@WebMvcTest` because there is no web layer.
+- Labs 1–3: domain, Spring, PostgreSQL/JPA/Flyway, transactions
+- Lab 4: REST contract, springdoc, profiles, actuator, web slice tests
+- Lab 5: Spring Security, JWT login, locked `pay`, auth page
+- Lab 6: Docker image / real outbound call (not in this lab)

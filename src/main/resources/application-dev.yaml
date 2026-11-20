@@ -8,3 +8,5 @@ app:
   downstream:
     base-url: http://localhost:9090
     timeout: 2s
+  jwt:
+    secret: css-online-shop-jwt-secret-lab5-ok
