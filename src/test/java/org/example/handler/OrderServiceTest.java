@@ -1,28 +1,19 @@
 package org.example.handler;
 
-import org.example.domain.DuplicateOrder;
-import org.example.domain.ForbiddenRule;
-import org.example.domain.OrderNotifier;
-import org.example.domain.OrderStatus;
-import org.example.domain.Rule;
-import org.example.domain.RuleChain;
-import org.example.domain.TransitionRule;
+import org.example.domain.*;
 import org.example.persistence.OrderJpa;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.*;
 
 /** Plain unit test: no Spring, no database. The outbound port is a Mockito mock. */
 class OrderServiceTest {
@@ -133,10 +124,9 @@ class OrderServiceTest {
         @Test
         void cartBecomesPaidAndPersists() {
             UUID id = UUID.randomUUID();
-            when(orders.find(id)).thenReturn(java.util.Optional.of(
+            when(orders.find(id)).thenReturn(Optional.of(
                     new Order(id, "ORD-19", OrderStatus.CART, "Laptop")));
-            when(orders.updateStatus(id, OrderStatus.PAID)).thenReturn(
-                    new Order(id, "ORD-19", OrderStatus.PAID, "Laptop"));
+            doNothing().when(orders).updateStatus(id, OrderStatus.PAID);
 
             Order paid = service.pay(id, "manager-dev");
 
