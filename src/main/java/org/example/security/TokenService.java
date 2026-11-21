@@ -53,7 +53,7 @@ public class TokenService {
                 .subject(authentication.getName())
                 .issuedAt(now)
                 .expiresAt(now.plus(props.ttl()))
-                .claim("roles", roles)
+                .claim("roles", List.copyOf(roles))
                 .build();
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();

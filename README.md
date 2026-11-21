@@ -96,8 +96,8 @@ The project separates business rules, application logic, persistence, HTTP, secu
 
 | Username | Role | Password |
 |---|---|---|
-| `clerk-dev` | CLERK | `css-lab5` |
-| `manager-dev` | MANAGER | `css-lab5` |
+| `clerk` | CLERK | `clerk-dev` |
+| `manager` | MANAGER | `manager-dev` |
 
 Passwords are encoded with `PasswordEncoderFactories.createDelegatingPasswordEncoder()` (BCrypt). No `{noop}`. No user table.
 
@@ -160,7 +160,7 @@ docker compose up -d
 mvn spring-boot:run
 ```
 
-Open `http://localhost:8080/` for the auth page. Log in as `clerk-dev` / `manager-dev` (password `css-lab5`).
+Open `http://localhost:8080/` for the auth page. Log in as `clerk` / `clerk-dev` or `manager` / `manager-dev`.
 
 ## Lab Scope
 

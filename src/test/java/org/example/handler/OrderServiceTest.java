@@ -128,7 +128,7 @@ class OrderServiceTest {
                     new Order(id, "ORD-19", OrderStatus.CART, "Laptop")));
             doNothing().when(orders).updateStatus(id, OrderStatus.PAID);
 
-            Order paid = service.pay(id, "manager-dev");
+            Order paid = service.pay(id, "manager");
 
             assertEquals(OrderStatus.PAID, paid.status());
             verify(orders).updateStatus(id, OrderStatus.PAID);
@@ -140,7 +140,7 @@ class OrderServiceTest {
             when(orders.find(id)).thenReturn(java.util.Optional.of(
                     new Order(id, "ORD-19", OrderStatus.SHIPPED, "Laptop")));
 
-            assertThrows(IllegalStateException.class, () -> service.pay(id, "manager-dev"));
+            assertThrows(IllegalStateException.class, () -> service.pay(id, "manager"));
             verify(orders, never()).updateStatus(any(), any());
         }
     }

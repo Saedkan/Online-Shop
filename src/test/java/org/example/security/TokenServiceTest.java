@@ -1,7 +1,5 @@
-
 package org.example.security;
 
-import org.example.handler.TokenResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -52,7 +50,7 @@ class TokenServiceTest {
 
         TestingAuthenticationToken authentication =
                 new TestingAuthenticationToken(
-                        "manager-dev",
+                        "manager",
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))
                 );
@@ -64,11 +62,10 @@ class TokenServiceTest {
 
         Jwt jwt = decoder.decode(issued.value());
 
-        assertThat(jwt.getSubject()).isEqualTo("manager-dev");
+        assertThat(jwt.getSubject()).isEqualTo("manager");
         assertThat(jwt.getClaimAsString("iss")).isEqualTo("online-shop");
         assertThat(jwt.getClaimAsStringList("roles"))
                 .containsExactly("MANAGER");
         assertThat(jwt.getExpiresAt()).isAfter(Instant.now());
     }
 }
-

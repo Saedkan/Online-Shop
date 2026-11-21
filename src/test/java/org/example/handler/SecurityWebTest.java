@@ -109,25 +109,25 @@ class SecurityWebTest {
     @Test
     void managerOnPayCallsService() throws Exception {
         UUID id = UUID.randomUUID();
-        when(service.pay(eq(id), eq("manager-dev")))
+        when(service.pay(eq(id), eq("manager")))
                 .thenReturn(new Order(id, "ORD-9", OrderStatus.PAID, "Laptop"));
 
         mockMvc.perform(post("/api/v1/orders/{id}/pay", id)
-                        .with(jwt().jwt(j -> j.subject("manager-dev"))
+                        .with(jwt().jwt(j -> j.subject("manager"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_MANAGER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PAID"));
 
-        verify(service).pay(id, "manager-dev");
+        verify(service).pay(id, "manager");
     }
 
     @Test
     void meReturnsUsernameFromToken() throws Exception {
         mockMvc.perform(get("/api/me")
-                        .with(jwt().jwt(j -> j.subject("clerk-dev"))
+                        .with(jwt().jwt(j -> j.subject("clerk"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CLERK"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("clerk-dev"))
+                .andExpect(jsonPath("$.username").value("clerk"))
                 .andExpect(jsonPath("$.authorities[0]").value("ROLE_CLERK"));
     }
 
