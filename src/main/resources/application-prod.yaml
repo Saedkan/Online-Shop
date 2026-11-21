@@ -1,3 +1,7 @@
+# Production reads everything secret from the environment. No default secret.
+# Run with SPRING_PROFILES_ACTIVE=prod and set CSS_DB_URL, CSS_DB_USER, CSS_DB_PASSWORD,
+# CSS_JWT_SECRET (32+ characters) and CSS_DOWNSTREAM_URL for the other team's base URL.
+# The dev users are not shipped in prod, so nobody can log in until a real user store exists.
 spring:
   datasource:
     url: ${CSS_DB_URL}
@@ -6,7 +10,7 @@ spring:
 
 app:
   downstream:
-    base-url: ${CSS_DOWNSTREAM_BASE_URL}
-    timeout: ${CSS_DOWNSTREAM_TIMEOUT:2s}
+    base-url: ${CSS_DOWNSTREAM_URL}
+    timeout: 2s
   jwt:
     secret: ${CSS_JWT_SECRET}

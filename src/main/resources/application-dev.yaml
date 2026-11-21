@@ -1,3 +1,5 @@
+# The laptop: PostgreSQL from docker-compose.yml. These are the classroom defaults.
+# Never commit a cloud password or a real secret here.
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/css
@@ -9,4 +11,5 @@ app:
     base-url: http://localhost:9090
     timeout: 2s
   jwt:
-    secret: css-online-shop-jwt-secret-lab5-ok
+    # Classroom value, 32 characters or more. HS256 needs at least 256 bits.
+    secret: online-shop-dev-secret-change-me-0123456789

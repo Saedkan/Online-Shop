@@ -7,35 +7,42 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
+/** The signing side (login) and the checking side (every API call) share one secret. */
 @Configuration
 @EnableConfigurationProperties(JwtProperties.class)
 public class JwtConfig {
 
+    /** Signs tokens at login. HS256. */
     @Bean
-    SecretKey jwtSecretKey(JwtProperties properties) {
-        properties.requireValidSecret();
-        return new SecretKeySpec(properties.getSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    public JwtEncoder jwtEncoder(JwtProperties props) {
+        return new NimbusJwtEncoder(new ImmutableSecret<>(secretKey(props.secret())));
     }
 
+    /** Checks signature (HS256), expiry and issuer on every call. */
     @Bean
-    JwtEncoder jwtEncoder(SecretKey jwtSecretKey) {
-        return new NimbusJwtEncoder(new ImmutableSecret<>(jwtSecretKey));
+    public JwtDecoder jwtDecoder(JwtProperties props) {
+        return decoder(props.secret(), props.issuer());
     }
 
-    @Bean
-    JwtDecoder jwtDecoder(SecretKey jwtSecretKey, JwtProperties properties) {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSecretKey)
+    static SecretKey secretKey(String secret) {
+        return new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    }
+
+    static NimbusJwtDecoder decoder(String secret, String issuer) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder
+                .withSecretKey(secretKey(secret))
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(properties.getIssuer()));
+        // default validators = expiry / not-before, plus the issuer must be this product
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
         return decoder;
     }
 }
