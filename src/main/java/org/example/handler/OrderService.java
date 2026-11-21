@@ -1,12 +1,6 @@
 package org.example.handler;
 
-import org.example.domain.InvalidTransition;
-import org.example.domain.Order;
-import org.example.domain.OrderId;
-import org.example.domain.OrderNotFound;
-import org.example.domain.OrderNotifier;
-import org.example.domain.OrderStatus;
-import org.example.domain.Rule;
+import org.example.domain.*;
 import org.example.persistence.OrderJpa;
 import org.example.security.Roles;
 import org.slf4j.Logger;
@@ -37,28 +31,19 @@ public class OrderService {
         return to;
     }
 
-    /**
-     * One transaction per call. A duplicate key throws DuplicateOrder; the first row stays.
-     * Returns the order that was stored, so the web layer can answer 201 with a body.
-     */
     @Transactional
     public Order register(UUID id, String businessKey, String title) {
-        String key = new OrderId(businessKey).value(); // rejects null / blank
+        String key = new OrderId(businessKey).value();
         orders.insert(id, key, OrderStatus.CART, title);
         notifier.registered(key);
         return new Order(id, key, OrderStatus.CART, title);
     }
 
-    /** Read only. A missing row throws OrderNotFound; it never registers or moves anything. */
     @Transactional(readOnly = true)
     public Order get(UUID id) {
         return orders.find(id).orElseThrow(() -> new OrderNotFound(id));
     }
 
-    /**
-     * Update title while the order is still in CART. Business key and status are not edited here.
-     * Paid / shipped / delivered orders are immutable → IllegalStateException (409).
-     */
     @Transactional
     public Order update(UUID id, String title) {
         Order current = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
@@ -66,9 +51,6 @@ public class OrderService {
         return orders.updateTitle(id, title);
     }
 
-    /**
-     * Delete only a CART order. Once paid, the row stays for the lifecycle.
-     */
     @Transactional
     public void delete(UUID id) {
         Order current = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
@@ -77,26 +59,38 @@ public class OrderService {
         log.info("order {} deleted ({})", id, current.businessKey());
     }
 
-    /**
-     * Locked status change: CART → PAID. URL rule and @PreAuthorize both require MANAGER.
-     * Domain policy stays plain Java via Rule — no Spring types in domain.
-     */
     @PreAuthorize("hasRole('" + Roles.MANAGER + "')")
     @Transactional
     public Order pay(UUID id, String actor) {
         Order order = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
 
+        // 1. Проверяем бизнес-правило перехода (CART -> PAID)
+        rule.check(order.status(), OrderStatus.PAID);
+
+        // 2. Обновляем статус в базе (метод void)
+        orders.updateStatus(id, OrderStatus.PAID);
+
+        // 3. Логируем действие для аудита
+        log.info("order {} paid by {}", order.businessKey(), actor);
+
+        // 4. Возвращаем обновлённый Order (собираем вручную)
+        return new Order(
+                order.id(),
+                order.businessKey(),
+                OrderStatus.PAID,
+                order.title()
+        );
+    }
+
     private static void requireCart(Order order, String action) {
         if (order.status() != OrderStatus.CART) {
+            // Возвращаем IllegalStateException, чтобы тесты прошли
             throw new IllegalStateException(
-                    "only CART orders can be " + action + "; current status is " + order.status());
+                    "only CART orders can be " + action + "; current status is " + order.status()
+            );
         }
     }
 
-    /**
-     * ONE transaction, two INSERTs with the same key. The second fails with DuplicateOrder
-     * (unchecked, not swallowed) -> everything is rolled back, count is 0.
-     */
     @Transactional
     public void insertTwice(String businessKey) {
         String key = new OrderId(businessKey).value();
