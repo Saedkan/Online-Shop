@@ -2,6 +2,6 @@ package org.example.handler;
 
 import java.util.List;
 
-/** Who the Bearer token says you are for this request. */
+/** Who the filter says you are: the token's subject and its authorities (for example ROLE_MANAGER). */
 public record MeResponse(String username, List<String> authorities) {
 }

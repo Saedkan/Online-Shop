@@ -1,39 +1,22 @@
 package org.example.security;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+
+import java.time.Duration;
 
 /**
- * JWT signing settings. The secret lives only in profile yaml (or CSS_JWT_SECRET in prod).
- * A value shorter than 32 characters fails at startup.
+ * Bound from yaml (app.jwt.*). The secret is NOT in application.yaml: dev has a classroom value,
+ * prod reads CSS_JWT_SECRET. A secret shorter than 32 characters stops the application at startup.
  */
 @ConfigurationProperties(prefix = "app.jwt")
-public class JwtProperties {
-
-    private String secret;
-    private String issuer;
-
-    public String getSecret() {
-        return secret;
-    }
-
-    public void setSecret(String secret) {
-        this.secret = secret;
-    }
-
-    public String getIssuer() {
-        return issuer;
-    }
-
-    public void setIssuer(String issuer) {
-        this.issuer = issuer;
-    }
-
-    void requireValidSecret() {
-        if (secret == null || secret.length() < 32) {
-            throw new IllegalStateException("app.jwt.secret must be at least 32 characters");
-        }
-        if (issuer == null || issuer.isBlank()) {
-            throw new IllegalStateException("app.jwt.issuer must be set");
-        }
-    }
+@Validated
+public record JwtProperties(
+        @NotBlank @Size(min = 32, message = "must be at least 32 characters") String secret,
+        @NotBlank String issuer,
+        @NotNull Duration ttl
+) {
 }

@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.example.domain.Order;
@@ -26,12 +27,16 @@ import java.net.URI;
 import java.util.UUID;
 
 /**
- * HTTP adapter. It chooses the status code; the service still does the insert.
+ * HTTP adapter. It chooses the status code; the service still does the work.
  * The path id is the UUID, the business key travels in the body.
+ * Every call needs a token (CLERK or MANAGER); the locked action needs MANAGER.
  */
 @RestController
 @RequestMapping("/api/v1/orders")
 @Tag(name = "Orders")
+@SecurityRequirement(name = "bearer")
+@ApiResponse(responseCode = "401", description = "UNAUTHENTICATED: valid token required",
+        content = @Content(schema = @Schema(implementation = ApiError.class)))
 public class OrderController {
 
     private final OrderService service;
@@ -46,8 +51,6 @@ public class OrderController {
     @ApiResponse(responseCode = "201", description = "Created. Location points to the new order.",
             content = @Content(schema = @Schema(implementation = OrderResponse.class)))
     @ApiResponse(responseCode = "400", description = "VALIDATION: blank field, title over 120, body is not JSON",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "401", description = "UNAUTHENTICATED: valid token required",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "DUPLICATE: this business key is already stored",
             content = @Content(schema = @Schema(implementation = ApiError.class)))

@@ -2,12 +2,15 @@ package org.example.handler;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.example.domain.DuplicateOrder;
+import org.example.domain.InvalidTransition;
 import org.example.domain.OrderNotFound;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.ErrorResponse;
@@ -20,14 +23,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.util.UUID;
 
 /**
- * The one place that knows 400, 404, 409, 415 and 500.
- * Domain exceptions stay plain Java; this class turns them into the error record.
+ * The one place that knows 400, 401 (login), 403 (method security), 404, 409, 415 and 500 for
+ * exceptions thrown inside a controller. Domain exceptions stay plain Java; this class turns
+ * them into the error record. (401 and 403 from the filter chain are written by ApiSecurityErrors.)
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
-
-    static final String CORRELATION_HEADER = "X-Correlation-Id";
-    private static final int MAX_CORRELATION_LENGTH = 128;
+    public static final String CORRELATION_HEADER = "X-Correlation-Id";
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
@@ -64,62 +66,40 @@ public class ApiExceptionHandler {
         return build(HttpStatus.CONFLICT, "DUPLICATE", ex.getMessage(), request);
     }
 
-    @ExceptionHandler(LoginFailedException.class)
-    ResponseEntity<ApiError> loginFailed(LoginFailedException ex, HttpServletRequest request) {
-        return build(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(IllegalStateException.class)
-    ResponseEntity<ApiError> domainConflict(IllegalStateException ex, HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, "CONFLICT", ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    ResponseEntity<ApiError> unsupportedMediaType(HttpServletRequest request) {
-        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED", "content type must be application/json", request);
-    }
-
-    /**
-     * Everything else. Spring's own 4xx exceptions (unknown path, wrong method, ...) keep their
-     * status and get the same error record; anything unmapped is a 500 whose text stays in the log.
-     */
-    @ExceptionHandler(Exception.class)
-    ResponseEntity<ApiError> other(Exception ex, HttpServletRequest request) {
-        if (ex instanceof ErrorResponse springError && springError.getStatusCode().is4xxClientError()) {
-            HttpStatus status = HttpStatus.valueOf(springError.getStatusCode().value());
-            return build(status, status.name(), status.getReasonPhrase().toLowerCase(), request);
-        }
-        String correlationId = correlationId(request);
-        log.error("unexpected error, correlationId={}", correlationId, ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiError("INTERNAL", "unexpected error", correlationId));
-    }
-
-    private static ResponseEntity<ApiError> build(HttpStatus status, String code, String message,
-                                                  HttpServletRequest request) {
-        return ResponseEntity.status(status)
-                .body(new ApiError(code, message, correlationId(request)));
-    }
-
-    /** "title must not be blank", "business key must not be blank". */
     private static String describe(ObjectError error) {
         if (error instanceof FieldError fieldError) {
-            return words(fieldError.getField()) + " " + fieldError.getDefaultMessage();
+            return fieldError.getField() + " " + fieldError.getDefaultMessage();
         }
-        return String.valueOf(error.getDefaultMessage());
+
+        return error.getDefaultMessage();
     }
 
-    private static String words(String camelCase) {
-        return camelCase.replaceAll("([a-z0-9])([A-Z])", "$1 $2").toLowerCase();
-    }
+    private ResponseEntity<ApiError> build(
+            HttpStatus status,
+            String code,
+            String message,
+            HttpServletRequest request
+    ) {
+        String correlationId = request.getHeader("X-Correlation-Id");
 
-    /** The caller's id if it sent a sane one, otherwise a fresh one. */
-    private static String correlationId(HttpServletRequest request) {
-        String sent = request.getHeader(CORRELATION_HEADER);
-        boolean usable = sent != null
-                && !sent.isBlank()
-                && sent.length() <= MAX_CORRELATION_LENGTH
-                && sent.chars().noneMatch(Character::isISOControl);
-        return usable ? sent.strip() : UUID.randomUUID().toString();
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = UUID.randomUUID().toString();
+        }
+
+        // Не позволяем слишком длинному значению попасть в ответ.
+        if (correlationId.length() > 128) {
+            correlationId = correlationId.substring(0, 128);
+        }
+
+        ApiError error = new ApiError(
+                code,
+                message,
+                correlationId
+        );
+
+        return ResponseEntity
+                .status(status)
+                .header("X-Correlation-Id", correlationId)
+                .body(error);
     }
 }

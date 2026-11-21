@@ -1,33 +1,33 @@
+# Shared by every run. No password, no URL and no secret in this file.
 spring:
   application:
-    name: Online Shop
+    name: online-shop
   profiles:
+    # A local boot with no flag uses the laptop database (application-dev.yaml).
+    # Production sets SPRING_PROFILES_ACTIVE=prod.
     default: dev
   jpa:
     open-in-view: false
     hibernate:
       # Flyway owns the schema. Hibernate only checks that entities match it.
       ddl-auto: validate
-    properties:
-      hibernate:
-        format_sql: true
   flyway:
     enabled: true
     locations: classpath:db/migration
-    # Local DB already has shop_order from earlier JDBC labs, but no flyway_schema_history.
-    baseline-on-migrate: true
 
 server:
   error:
+    # Boot's default error payload must not leak anything.
+    include-stacktrace: never
     include-message: never
     include-binding-errors: never
-    include-stacktrace: never
     include-exception: false
 
 management:
   endpoints:
     web:
       exposure:
+        # Only these two. env, beans, heapdump, shutdown stay hidden.
         include: health,info
   endpoint:
     health:
@@ -42,4 +42,8 @@ info:
 
 app:
   jwt:
+    # Who issued the token. A token with another iss is rejected by this API.
     issuer: online-shop
+    # 15 minutes. The login response says expiresIn: 900.
+    ttl: 15m
+    # secret: set in application-dev.yaml (classroom value) or CSS_JWT_SECRET in prod. Never here.

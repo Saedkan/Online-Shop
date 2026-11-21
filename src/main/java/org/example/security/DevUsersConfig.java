@@ -10,26 +10,23 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 /**
- * Laptop-only users. Passwords are BCrypt via the delegating encoder. No user table this lab.
+ * Two classroom users for the laptop. There is no user table in this lab.
+ * The encoder hashes the passwords (BCrypt) when the application starts: no {noop}, no plain text stored.
+ * User.roles("CLERK") stores the authority ROLE_CLERK.
  */
 @Configuration
 @Profile("dev")
 public class DevUsersConfig {
 
-    /** Shared classroom password for both roles. Shown on the auth page as dev-only. */
-    public static final String DEV_PASSWORD = "css-lab5";
-
     @Bean
-    UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
-        UserDetails clerk = User.builder()
-                .username("clerk-dev")
-                .password(passwordEncoder.encode(DEV_PASSWORD))
-                .roles("CLERK")
+    public UserDetailsService devUsers(PasswordEncoder encoder) {
+        UserDetails clerk = User.withUsername("clerk")
+                .password(encoder.encode("clerk-dev"))
+                .roles(Roles.CLERK)
                 .build();
-        UserDetails manager = User.builder()
-                .username("manager-dev")
-                .password(passwordEncoder.encode(DEV_PASSWORD))
-                .roles("MANAGER")
+        UserDetails manager = User.withUsername("manager")
+                .password(encoder.encode("manager-dev"))
+                .roles(Roles.MANAGER)
                 .build();
         return new InMemoryUserDetailsManager(clerk, manager);
     }

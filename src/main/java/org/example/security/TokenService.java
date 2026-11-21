@@ -1,6 +1,6 @@
 package org.example.security;
 
-import org.example.handler.TokenResponse;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -10,45 +10,54 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.Collection;
 import java.util.List;
 
+/**
+ * Turns a successful login into a signed JWT. The payload is readable by anyone,
+ * so it carries only: iss, sub, iat, exp and roles. No password, no personal data.
+ */
 @Service
 public class TokenService {
 
-    static final long EXPIRES_IN_SECONDS = 900L;
+    private static final String ROLE_PREFIX = "ROLE_";
 
-    private final JwtEncoder encoder;
-    private final JwtProperties properties;
-
-    public TokenService(JwtEncoder encoder, JwtProperties properties) {
-        this.encoder = encoder;
-        this.properties = properties;
+    /** The token string and how many seconds it stays valid. */
+    public record IssuedToken(String value, long expiresInSeconds) {
+        @Override
+        public String toString() {
+            return "IssuedToken[expiresInSeconds=" + expiresInSeconds + "]"; // never print the token
+        }
     }
 
-    public TokenResponse issue(String username, Collection<? extends GrantedAuthority> authorities) {
-        Instant now = Instant.now();
-        Instant expiresAt = now.plusSeconds(EXPIRES_IN_SECONDS);
+    private final JwtEncoder encoder;
+    private final JwtProperties props;
 
-        List<String> roles = authorities.stream()
+    public TokenService(JwtEncoder encoder, JwtProperties props) {
+        this.encoder = encoder;
+        this.props = props;
+    }
+
+    public IssuedToken issue(Authentication authentication) {
+        Instant now = Instant.now();
+
+        // ROLE_MANAGER -> MANAGER: the claim holds plain role names
+        List<String> roles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .map(TokenService::withoutRolePrefix)
+                .filter(authority -> authority.startsWith(ROLE_PREFIX))
+                .map(authority -> authority.substring(ROLE_PREFIX.length()))
+                .sorted()
                 .toList();
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
-                .issuer(properties.getIssuer())
-                .subject(username)
+                .issuer(props.issuer())
+                .subject(authentication.getName())
                 .issuedAt(now)
-                .expiresAt(expiresAt)
+                .expiresAt(now.plus(props.ttl()))
                 .claim("roles", roles)
                 .build();
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         String token = encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
-        return new TokenResponse(token, "Bearer", EXPIRES_IN_SECONDS);
-    }
-
-    private static String withoutRolePrefix(String authority) {
-        return authority.startsWith("ROLE_") ? authority.substring("ROLE_".length()) : authority;
+        return new IssuedToken(token, props.ttl().toSeconds());
     }
 }

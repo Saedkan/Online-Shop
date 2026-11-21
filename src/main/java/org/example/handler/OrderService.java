@@ -1,5 +1,6 @@
 package org.example.handler;
 
+import org.example.domain.InvalidTransition;
 import org.example.domain.Order;
 import org.example.domain.OrderId;
 import org.example.domain.OrderNotFound;
@@ -7,6 +8,7 @@ import org.example.domain.OrderNotifier;
 import org.example.domain.OrderStatus;
 import org.example.domain.Rule;
 import org.example.persistence.OrderJpa;
+import org.example.security.Roles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +19,7 @@ import java.util.UUID;
 
 @Service
 public class OrderService {
+
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final Rule rule;
@@ -78,15 +81,10 @@ public class OrderService {
      * Locked status change: CART → PAID. URL rule and @PreAuthorize both require MANAGER.
      * Domain policy stays plain Java via Rule — no Spring types in domain.
      */
+    @PreAuthorize("hasRole('" + Roles.MANAGER + "')")
     @Transactional
-    @PreAuthorize("hasRole('MANAGER')")
     public Order pay(UUID id, String actor) {
-        Order current = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
-        rule.check(current.status(), OrderStatus.PAID);
-        Order paid = orders.updateStatus(id, OrderStatus.PAID);
-        log.info("order {} paid by {}", id, actor);
-        return paid;
-    }
+        Order order = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
 
     private static void requireCart(Order order, String action) {
         if (order.status() != OrderStatus.CART) {

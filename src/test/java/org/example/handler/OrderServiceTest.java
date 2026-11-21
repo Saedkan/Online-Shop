@@ -2,7 +2,6 @@ package org.example.handler;
 
 import org.example.domain.DuplicateOrder;
 import org.example.domain.ForbiddenRule;
-import org.example.domain.Order;
 import org.example.domain.OrderNotifier;
 import org.example.domain.OrderStatus;
 import org.example.domain.Rule;
@@ -24,7 +23,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 /** Plain unit test: no Spring, no database. The outbound port is a Mockito mock. */
 class OrderServiceTest {

@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import org.example.domain.DuplicateOrder;
 import org.example.domain.Order;
+import org.example.domain.OrderNotFound;
 import org.example.domain.OrderStatus;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -54,12 +55,13 @@ public class OrderJpa {
         return repository.findById(id).map(OrderJpa::toDomain);
     }
 
-    /** Persist a new status for an existing row. Caller already validated the transition. */
-    public Order updateStatus(UUID id, OrderStatus status) {
-        OrderEntity entity = repository.findById(id).orElseThrow();
+    /**
+     * Changes the status of an existing row. Must run inside the caller's transaction:
+     * the entity is managed, so Hibernate writes the UPDATE when that transaction commits.
+     */
+    public void updateStatus(UUID id, OrderStatus status) {
+        OrderEntity entity = repository.findById(id).orElseThrow(() -> new OrderNotFound(id));
         entity.setStatus(status);
-        em.flush();
-        return toDomain(entity);
     }
 
     /** Persist a new title. Caller already checked the order may still be edited. */
@@ -89,13 +91,18 @@ public class OrderJpa {
         return new Order(e.getId(), e.getBusinessKey(), e.getStatus(), e.getTitle());
     }
 
-    /** Walks the cause chain down to the JDBC driver's SQLException and checks its SQLState. */
     private static boolean isUniqueViolation(Throwable ex) {
-        for (Throwable t = ex; t != null; t = t.getCause()) {
-            if (t instanceof SQLException sql && UNIQUE_VIOLATION.equals(sql.getSQLState())) {
+        Throwable current = ex;
+
+        while (current != null) {
+            if (current instanceof SQLException sqlException
+                    && UNIQUE_VIOLATION.equals(sqlException.getSQLState())) {
                 return true;
             }
+
+            current = current.getCause();
         }
+
         return false;
     }
 }
