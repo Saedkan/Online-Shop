@@ -79,6 +79,83 @@ class OrderServiceTest {
     }
 
     @Nested
+    class UpdateAndDelete {
+
+        @Test
+        void updateChangesTitleWhileInCart() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.CART, "Laptop")));
+            when(orders.updateTitle(id, "Phone")).thenReturn(
+                    new Order(id, "ORD-19", OrderStatus.CART, "Phone"));
+
+            Order updated = service.update(id, "Phone");
+
+            assertEquals("Phone", updated.title());
+            verify(orders).updateTitle(id, "Phone");
+        }
+
+        @Test
+        void updateRejectsPaidOrder() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.PAID, "Laptop")));
+
+            assertThrows(IllegalStateException.class, () -> service.update(id, "Phone"));
+            verify(orders, never()).updateTitle(any(), any());
+        }
+
+        @Test
+        void deleteRemovesCartOrder() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.CART, "Laptop")));
+
+            service.delete(id);
+
+            verify(orders).delete(id);
+        }
+
+        @Test
+        void deleteRejectsPaidOrder() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.PAID, "Laptop")));
+
+            assertThrows(IllegalStateException.class, () -> service.delete(id));
+            verify(orders, never()).delete(any());
+        }
+    }
+
+    @Nested
+    class Pay {
+
+        @Test
+        void cartBecomesPaidAndPersists() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.CART, "Laptop")));
+            when(orders.updateStatus(id, OrderStatus.PAID)).thenReturn(
+                    new Order(id, "ORD-19", OrderStatus.PAID, "Laptop"));
+
+            Order paid = service.pay(id, "manager-dev");
+
+            assertEquals(OrderStatus.PAID, paid.status());
+            verify(orders).updateStatus(id, OrderStatus.PAID);
+        }
+
+        @Test
+        void forbiddenTransitionDoesNotUpdate() {
+            UUID id = UUID.randomUUID();
+            when(orders.find(id)).thenReturn(java.util.Optional.of(
+                    new Order(id, "ORD-19", OrderStatus.SHIPPED, "Laptop")));
+
+            assertThrows(IllegalStateException.class, () -> service.pay(id, "manager-dev"));
+            verify(orders, never()).updateStatus(any(), any());
+        }
+    }
+
+    @Nested
     class Register {
 
         @Test

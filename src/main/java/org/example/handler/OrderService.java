@@ -56,26 +56,51 @@ public class OrderService {
     }
 
     /**
-     * The locked action: CART -> PAID. The URL rule already stops a CLERK; @PreAuthorize repeats the
-     * same role here, so the rule still holds if another caller ever reaches this method.
-     * The policy decides whether the move is allowed. If not, the row stays as it is.
-     *
-     * @param actor the authenticated user name (Authentication.getName()), never taken from JSON
+     * Update title while the order is still in CART. Business key and status are not edited here.
+     * Paid / shipped / delivered orders are immutable → IllegalStateException (409).
+     */
+    @Transactional
+    public Order update(UUID id, String title) {
+        Order current = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
+        requireCart(current, "updated");
+        return orders.updateTitle(id, title);
+    }
+
+    /**
+     * Delete only a CART order. Once paid, the row stays for the lifecycle.
+     */
+    @Transactional
+    public void delete(UUID id) {
+        Order current = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
+        requireCart(current, "deleted");
+        orders.delete(id);
+        log.info("order {} deleted ({})", id, current.businessKey());
+    }
+
+    /**
+     * Locked status change: CART → PAID. URL rule and @PreAuthorize both require MANAGER.
+     * Domain policy stays plain Java via Rule — no Spring types in domain.
      */
     @PreAuthorize("hasRole('" + Roles.MANAGER + "')")
     @Transactional
     public Order pay(UUID id, String actor) {
         Order order = orders.find(id).orElseThrow(() -> new OrderNotFound(id));
 
-        OrderStatus next;
-        try {
-            next = move(order.status(), OrderStatus.PAID);
-        } catch (IllegalStateException ex) {
-            // The Lab 2 rules throw IllegalStateException. A named domain error is easier to map to HTTP.
-            throw new InvalidTransition(ex.getMessage());
+    private static void requireCart(Order order, String action) {
+        if (order.status() != OrderStatus.CART) {
+            throw new IllegalStateException(
+                    "only CART orders can be " + action + "; current status is " + order.status());
         }
+    }
 
-        orders.updateStatus(id, next);
-        log.info("order {} moved {} -> {} by {}", order.businessKey(), order.status(), next, actor);
-        return new Order(order.id(), order.businessKey(), next, order.title());
-    }}
+    /**
+     * ONE transaction, two INSERTs with the same key. The second fails with DuplicateOrder
+     * (unchecked, not swallowed) -> everything is rolled back, count is 0.
+     */
+    @Transactional
+    public void insertTwice(String businessKey) {
+        String key = new OrderId(businessKey).value();
+        orders.insert(UUID.randomUUID(), key, OrderStatus.CART, "First attempt");
+        orders.insert(UUID.randomUUID(), key, OrderStatus.CART, "Second attempt");
+    }
+}

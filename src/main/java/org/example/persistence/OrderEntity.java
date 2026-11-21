@@ -68,6 +68,10 @@ public class OrderEntity {
         return title;
     }
 
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }

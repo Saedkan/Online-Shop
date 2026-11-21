@@ -33,7 +33,7 @@ Roles: **CLERK** (junior) and **MANAGER** (senior). Locked action: **`pay`** (`C
 | Action | CLERK | MANAGER | No token |
 |---|---|---|---|
 | `POST /api/v1/auth/login` | anyone | anyone | allowed |
-| Create and read orders | yes | yes | 401 |
+| Create, read, update, delete orders | yes | yes | 401 |
 | Locked status change `POST /api/v1/orders/{id}/pay` | 403 | yes | 401 |
 | `GET /api/me` | yes | yes | 401 |
 | `GET /actuator/health` | anyone | anyone | allowed |
@@ -78,6 +78,8 @@ The project separates business rules, application logic, persistence, HTTP, secu
 - `GET /api/me` — username + authorities from the token
 - `POST /api/v1/orders` — create one order → `201` + `Location` (CLERK or MANAGER)
 - `GET /api/v1/orders/{id}` — read by UUID → `200` (CLERK or MANAGER)
+- `PUT /api/v1/orders/{id}` — update title while `CART` → `200` (CLERK or MANAGER); otherwise `409`
+- `DELETE /api/v1/orders/{id}` — delete while `CART` → `204` (CLERK or MANAGER); otherwise `409`
 - `POST /api/v1/orders/{id}/pay` — locked status change → `200` (MANAGER only)
 - Failures use `{ code, message, correlationId }`
 - OpenAPI UI: `/swagger-ui.html` (open)
