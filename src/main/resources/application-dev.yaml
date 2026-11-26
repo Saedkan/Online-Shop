@@ -13,3 +13,6 @@ app:
   jwt:
     # Classroom value, 32 characters or more. HS256 needs at least 256 bits.
     secret: online-shop-dev-secret-change-me-0123456789
+logging:
+  level:
+    org.springframework.security: DEBUG
